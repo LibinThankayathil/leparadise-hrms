@@ -1,0 +1,168 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  MANAGER
+  EMPLOYEE
+}
+
+enum EmploymentStatus {
+  ACTIVE
+  ON_LEAVE
+  TERMINATED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  LATE
+  HALF_DAY
+  ABSENT
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PayrollStatus {
+  DRAFT
+  PAID
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String
+  role         Role      @default(EMPLOYEE)
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  employee     Employee?
+
+  @@map("users")
+}
+
+model Department {
+  id          String     @id @default(uuid())
+  name        String     @unique
+  description String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  employees   Employee[]
+
+  @@map("departments")
+}
+
+model Employee {
+  id            String           @id @default(uuid())
+  userId        String           @unique
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  employeeCode  String           @unique
+  firstName     String
+  lastName      String
+  phone         String?
+  departmentId  String?
+  department    Department?      @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  designation   String
+  managerId     String?
+  manager       Employee?        @relation("ManagerSubordinates", fields: [managerId], references: [id], onDelete: SetNull)
+  subordinates  Employee[]       @relation("ManagerSubordinates")
+  dateOfJoining DateTime         @default(now())
+  status        EmploymentStatus @default(ACTIVE)
+  baseSalary    Decimal          @default(0.0) @db.Decimal(10, 2)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  attendanceRecords AttendanceRecord[]
+  leaveRequests     LeaveRequest[]
+  leaveBalances     LeaveBalance[]
+  payslips          Payslip[]
+
+  @@map("employees")
+}
+
+model AttendanceRecord {
+  id         String           @id @default(uuid())
+  employeeId String
+  employee   Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  date       DateTime         @db.Date
+  clockIn    DateTime?
+  clockOut   DateTime?
+  status     AttendanceStatus @default(PRESENT)
+  note       String?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  @@unique([employeeId, date])
+  @@map("attendance_records")
+}
+
+model LeaveType {
+  id          String         @id @default(uuid())
+  name        String         @unique
+  code        String         @unique
+  defaultDays Int            @default(12)
+  requests    LeaveRequest[]
+  balances    LeaveBalance[]
+
+  @@map("leave_types")
+}
+
+model LeaveBalance {
+  id          String    @id @default(uuid())
+  employeeId  String
+  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveTypeId String
+  leaveType   LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
+  totalDays   Int
+  usedDays    Int       @default(0)
+  year        Int
+
+  @@unique([employeeId, leaveTypeId, year])
+  @@map("leave_balances")
+}
+
+model LeaveRequest {
+  id            String      @id @default(uuid())
+  employeeId    String
+  employee      Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveTypeId   String
+  leaveType     LeaveType   @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
+  startDate     DateTime    @db.Date
+  endDate       DateTime    @db.Date
+  daysCount     Decimal     @db.Decimal(4, 1)
+  reason        String
+  status        LeaveStatus @default(PENDING)
+  reviewedById  String?
+  reviewedAt    DateTime?
+  reviewComment String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@map("leave_requests")
+}
+
+model Payslip {
+  id          String        @id @default(uuid())
+  employeeId  String
+  employee    Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  month       Int
+  year        Int
+  basicSalary Decimal       @db.Decimal(10, 2)
+  allowances  Decimal       @default(0.0) @db.Decimal(10, 2)
+  deductions  Decimal       @default(0.0) @db.Decimal(10, 2)
+  netSalary   Decimal       @db.Decimal(10, 2)
+  status      PayrollStatus @default(DRAFT)
+  generatedAt DateTime      @default(now())
+
+  @@unique([employeeId, month, year])
+  @@map("payslips")
+}
+
