@@ -833,7 +833,7 @@ export default function EmployeesPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-[#344054] mb-1">Monthly Salary ($)</label>
+                    <label className="block text-xs font-semibold text-[#344054] mb-1">Monthly Salary (₹)</label>
                     <input
                       type="number"
                       min={0}
@@ -1021,7 +1021,7 @@ export default function EmployeesPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-[#344054] mb-1">Monthly Salary ($)</label>
+                    <label className="block text-xs font-semibold text-[#344054] mb-1">Monthly Salary (₹)</label>
                     <input
                       type="number"
                       min={0}
