@@ -1,16 +1,23 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getSession, hashPassword } from '@/lib/auth';
-import { Role, EmploymentStatus } from '@prisma/client';
+import { isCurrentManager } from '@/lib/employee-access';
+import { Role, EmploymentStatus, Prisma } from '@prisma/client';
 import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
+
+const emailConflict = 'Email address is already in use by another account';
+const codeConflict = 'Employee code is already in use';
 
 const updateEmployeeSchema = z.object({
   firstName: z.string().min(1).optional(),
   lastName: z.string().min(1).optional(),
   email: z.string().email().optional(),
-  password: z.string().min(6).optional(),
+  password: z.string().min(6).refine(
+    (password) => Buffer.byteLength(password, 'utf8') <= 72,
+    { message: 'Password must be at most 72 UTF-8 bytes' }
+  ).optional(),
   role: z.nativeEnum(Role).optional(),
   employeeCode: z.string().min(2).optional(),
   phone: z.string().optional().nullable(),
@@ -29,6 +36,10 @@ export async function GET(
     const session = await getSession();
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (session.role !== Role.MANAGER) {
+      return NextResponse.json({ error: 'Forbidden: Manager access required' }, { status: 403 });
     }
 
     const { id } = params;
@@ -58,12 +69,18 @@ export async function PUT(
 ) {
   try {
     const session = await getSession();
-    if (!session || session.role !== Role.MANAGER) {
+    if (!session || !(await isCurrentManager(session))) {
       return NextResponse.json({ error: 'Forbidden: Manager access required' }, { status: 403 });
     }
 
     const { id } = params;
-    const body = await request.json();
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch (error) {
+      if (!(error instanceof SyntaxError)) throw error;
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
     const parsed = updateEmployeeSchema.safeParse(body);
 
     if (!parsed.success) {
@@ -91,7 +108,7 @@ export async function PUT(
         where: { email: data.email },
       });
       if (emailTaken) {
-        return NextResponse.json({ error: 'Email address is already in use by another account' }, { status: 409 });
+        return NextResponse.json({ error: emailConflict }, { status: 409 });
       }
     }
 
@@ -101,7 +118,7 @@ export async function PUT(
         where: { employeeCode: data.employeeCode },
       });
       if (codeTaken) {
-        return NextResponse.json({ error: 'Employee code is already in use' }, { status: 409 });
+        return NextResponse.json({ error: codeConflict }, { status: 409 });
       }
     }
 
@@ -146,6 +163,15 @@ export async function PUT(
 
     return NextResponse.json({ success: true, employee: updated });
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      const target = error.meta?.target;
+      if (target === 'users_email_key' || (Array.isArray(target) && target.includes('email'))) {
+        return NextResponse.json({ error: emailConflict }, { status: 409 });
+      }
+      if (target === 'employees_employeeCode_key' || (Array.isArray(target) && target.includes('employeeCode'))) {
+        return NextResponse.json({ error: codeConflict }, { status: 409 });
+      }
+    }
     console.error('Update employee error:', error);
     return NextResponse.json({ error: 'Failed to update staff member' }, { status: 500 });
   }
@@ -157,7 +183,7 @@ export async function DELETE(
 ) {
   try {
     const session = await getSession();
-    if (!session || session.role !== Role.MANAGER) {
+    if (!session || !(await isCurrentManager(session))) {
       return NextResponse.json({ error: 'Forbidden: Manager access required' }, { status: 403 });
     }
 

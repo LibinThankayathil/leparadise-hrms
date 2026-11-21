@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { InlineLoader } from '@/components/LoadingScreen';
 import { useAuth } from '@/context/AuthContext';
@@ -18,6 +18,62 @@ import {
   Pencil
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
+
+type SelectedStaff = { id: string; name: string; code: string };
+
+function describeStaff(emp: any): SelectedStaff {
+  return { id: emp.id, name: `${emp.firstName} ${emp.lastName}`, code: emp.employeeCode };
+}
+
+function employeeFormValues(emp: any) {
+  return {
+    firstName: emp.firstName || '',
+    lastName: emp.lastName || '',
+    email: emp.user?.email || '',
+    password: '',
+    employeeCode: emp.employeeCode || '',
+    designation: emp.designation || '',
+    departmentId: emp.departmentId || emp.department?.id || '',
+    role: emp.user?.role || 'EMPLOYEE',
+    phone: emp.phone || '',
+    baseSalary: Number(emp.baseSalary ?? 0) / 12,
+    status: emp.status || 'ACTIVE',
+  };
+}
+
+function StaffDialog({ titleId, width, restoreFocus, onDismiss, children }: {
+  titleId: string;
+  width: string;
+  restoreFocus?: { current: HTMLElement | null };
+  onDismiss: () => void;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+
+  useLayoutEffect(() => {
+    const dialog = ref.current!;
+    dialog.showModal();
+    dialog.querySelector<HTMLElement>('[data-dialog-focus]')?.focus();
+    return () => {
+      dialog.close();
+      restoreFocus?.current?.focus();
+    };
+  }, [restoreFocus]);
+
+  return (
+    <dialog
+      ref={ref}
+      aria-labelledby={titleId}
+      onCancel={(event) => {
+        event.preventDefault();
+        onDismiss();
+      }}
+      className={`m-auto max-h-[90vh] w-[calc(100%_-_2rem)] overflow-y-auto rounded-2xl bg-white p-0 shadow-2xl backdrop:bg-slate-900/40 backdrop:backdrop-blur-xs ${width}`}
+    >
+      {children}
+    </dialog>
+  );
+}
 
 export default function EmployeesPage() {
   const { user, loading: authLoading } = useAuth();
@@ -41,12 +97,15 @@ export default function EmployeesPage() {
   const [showModal, setShowModal] = useState(false);
   const [formError, setFormError] = useState('');
   const [formSubmitting, setFormSubmitting] = useState(false);
-  const [selectedRows, setSelectedRows] = useState<Record<string, boolean>>({});
+  const [selectedRows, setSelectedRows] = useState<Record<string, SelectedStaff>>({});
 
   // Delete modal state
+  const deleteTrigger = useRef<HTMLElement | null>(null);
+  const directoryHeading = useRef<HTMLHeadingElement>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [staffToDelete, setStaffToDelete] = useState<{ id: string; name: string; code: string } | null>(null);
-  const [isBulkDelete, setIsBulkDelete] = useState(false);
+  const [bulkDeleteSnapshot, setBulkDeleteSnapshot] = useState<SelectedStaff[]>([]);
+  const isBulkDelete = bulkDeleteSnapshot.length > 0;
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -56,19 +115,7 @@ export default function EmployeesPage() {
   const [editingEmployee, setEditingEmployee] = useState<any>(null);
   const [editFormError, setEditFormError] = useState('');
   const [editSubmitting, setEditSubmitting] = useState(false);
-  const [editFormData, setEditFormData] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    password: '',
-    employeeCode: '',
-    designation: '',
-    departmentId: '',
-    role: 'EMPLOYEE',
-    phone: '',
-    baseSalary: 0,
-    status: 'ACTIVE',
-  });
+  const [editFormData, setEditFormData] = useState(() => employeeFormValues({}));
 
   // Form State
   const [formData, setFormData] = useState({
@@ -84,36 +131,43 @@ export default function EmployeesPage() {
     baseSalary: 1400,
   });
 
-  const loadData = async () => {
-    try {
-      const query = new URLSearchParams();
-      if (search) query.append('search', search);
-      if (selectedDept) query.append('departmentId', selectedDept);
-      if (selectedStatus) query.append('status', selectedStatus);
-
-      const [empRes, deptRes] = await Promise.all([
-        fetch(`/api/employees?${query.toString()}`),
-        fetch('/api/departments'),
-      ]);
-
-      if (empRes.ok) {
-        const d = await empRes.json();
-        setEmployees(d.employees);
-      }
-      if (deptRes.ok) {
-        const d = await deptRes.json();
-        setDepartments(d.departments);
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [refreshVersion, setRefreshVersion] = useState(0);
+  const refreshEmployees = () => setRefreshVersion((version) => version + 1);
 
   useEffect(() => {
+    const controller = new AbortController();
+    const { signal } = controller;
+
+    async function loadData() {
+      try {
+        const query = new URLSearchParams();
+        if (search) query.append('search', search);
+        if (selectedDept) query.append('departmentId', selectedDept);
+        if (selectedStatus) query.append('status', selectedStatus);
+
+        const [empRes, deptRes] = await Promise.all([
+          fetch(`/api/employees?${query.toString()}`, { signal }),
+          fetch('/api/departments', { signal }),
+        ]);
+
+        if (empRes.ok) {
+          const d = await empRes.json();
+          if (!signal.aborted) setEmployees(d.employees);
+        }
+        if (deptRes.ok) {
+          const d = await deptRes.json();
+          if (!signal.aborted) setDepartments(d.departments);
+        }
+      } catch (e) {
+        if (!signal.aborted) console.error(e);
+      } finally {
+        if (!signal.aborted) setLoading(false);
+      }
+    }
+
     loadData();
-  }, [search, selectedDept, selectedStatus]);
+    return () => controller.abort();
+  }, [search, selectedDept, selectedStatus, refreshVersion]);
 
   useEffect(() => {
     if (successMessage) {
@@ -134,36 +188,38 @@ export default function EmployeesPage() {
 
   const selectableEmployees = employees.filter((emp) => !isSelfEmployee(emp));
   const isAllSelected = selectableEmployees.length > 0 && selectableEmployees.every((emp) => selectedRows[emp.id]);
-  const selectedCount = Object.keys(selectedRows).filter((id) => selectedRows[id]).length;
+  const selectedCount = Object.keys(selectedRows).length;
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     const checked = e.target.checked;
-    const next: Record<string, boolean> = {};
-    selectableEmployees.forEach((emp) => {
-      next[emp.id] = checked;
-    });
-    setSelectedRows(next);
+    setSelectedRows(checked
+      ? Object.fromEntries(selectableEmployees.map((emp) => [emp.id, describeStaff(emp)]))
+      : {}
+    );
   };
 
-  const handleSelectRow = (id: string) => {
-    setSelectedRows((prev) => ({ ...prev, [id]: !prev[id] }));
+  const handleSelectRow = (emp: any) => {
+    setSelectedRows((prev) => {
+      const next = { ...prev };
+      if (next[emp.id]) delete next[emp.id];
+      else next[emp.id] = describeStaff(emp);
+      return next;
+    });
   };
 
-  const handleInitiateSingleDelete = (emp: any) => {
-    setStaffToDelete({
-      id: emp.id,
-      name: `${emp.firstName} ${emp.lastName}`,
-      code: emp.employeeCode,
-    });
-    setIsBulkDelete(false);
+  const handleInitiateSingleDelete = (emp: any, trigger: HTMLButtonElement) => {
+    deleteTrigger.current = trigger;
+    setStaffToDelete(describeStaff(emp));
+    setBulkDeleteSnapshot([]);
     setDeleteError('');
     setShowDeleteModal(true);
   };
 
-  const handleInitiateBulkDelete = () => {
-    const selectedIds = Object.keys(selectedRows).filter((id) => selectedRows[id]);
-    if (selectedIds.length === 0) return;
-    setIsBulkDelete(true);
+  const handleInitiateBulkDelete = (event: React.MouseEvent<HTMLButtonElement>) => {
+    const snapshot = Object.values(selectedRows);
+    if (snapshot.length === 0) return;
+    deleteTrigger.current = event.currentTarget;
+    setBulkDeleteSnapshot(snapshot);
     setStaffToDelete(null);
     setDeleteError('');
     setShowDeleteModal(true);
@@ -175,7 +231,7 @@ export default function EmployeesPage() {
 
     try {
       if (isBulkDelete) {
-        const selectedIds = Object.keys(selectedRows).filter((id) => selectedRows[id]);
+        const selectedIds = bulkDeleteSnapshot.map(({ id }) => id);
         const res = await fetch('/api/employees', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
@@ -189,10 +245,11 @@ export default function EmployeesPage() {
           return;
         }
 
+        deleteTrigger.current = directoryHeading.current;
         setShowDeleteModal(false);
         setSelectedRows({});
-        setSuccessMessage(data.message || `Successfully deleted ${selectedIds.length} staff member(s)`);
-        loadData();
+        setSuccessMessage(data.message || 'Staff deletion completed');
+        refreshEmployees();
       } else if (staffToDelete) {
         const res = await fetch(`/api/employees/${staffToDelete.id}`, {
           method: 'DELETE',
@@ -205,6 +262,7 @@ export default function EmployeesPage() {
           return;
         }
 
+        deleteTrigger.current = directoryHeading.current;
         setShowDeleteModal(false);
         setStaffToDelete(null);
         setSelectedRows((prev) => {
@@ -213,7 +271,7 @@ export default function EmployeesPage() {
           return next;
         });
         setSuccessMessage(data.message || 'Staff member deleted successfully');
-        loadData();
+        refreshEmployees();
       }
     } catch (err) {
       console.error(err);
@@ -232,7 +290,7 @@ export default function EmployeesPage() {
       const res = await fetch('/api/employees', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ ...formData, baseSalary: formData.baseSalary * 12 }),
       });
 
       const data = await res.json();
@@ -257,7 +315,7 @@ export default function EmployeesPage() {
         baseSalary: 1400,
       });
       setSuccessMessage('New staff member added successfully');
-      loadData();
+      refreshEmployees();
     } catch (err) {
       console.error(err);
       setFormError('An unexpected error occurred.');
@@ -268,19 +326,7 @@ export default function EmployeesPage() {
 
   const handleOpenEdit = (emp: any) => {
     setEditingEmployee(emp);
-    setEditFormData({
-      firstName: emp.firstName || '',
-      lastName: emp.lastName || '',
-      email: emp.user?.email || '',
-      password: '',
-      employeeCode: emp.employeeCode || '',
-      designation: emp.designation || '',
-      departmentId: emp.departmentId || emp.department?.id || '',
-      role: emp.user?.role || 'EMPLOYEE',
-      phone: emp.phone || '',
-      baseSalary: emp.baseSalary ? Number(emp.baseSalary) : 0,
-      status: emp.status || 'ACTIVE',
-    });
+    setEditFormData(employeeFormValues(emp));
     setEditFormError('');
     setShowEditModal(true);
   };
@@ -291,23 +337,19 @@ export default function EmployeesPage() {
     setEditSubmitting(true);
 
     try {
-      const payload: any = {
-        firstName: editFormData.firstName,
-        lastName: editFormData.lastName,
-        email: editFormData.email,
-        employeeCode: editFormData.employeeCode,
-        designation: editFormData.designation,
-        departmentId: editFormData.departmentId || null,
-        role: editFormData.role,
-        phone: editFormData.phone || null,
-        baseSalary: editFormData.baseSalary,
-        status: editFormData.status,
+      const original = employeeFormValues(editingEmployee);
+      const changedFields = Object.fromEntries(
+        (Object.keys(editFormData) as (keyof typeof editFormData)[])
+          .filter((field) => field !== 'password' && editFormData[field] !== original[field])
+          .map((field) => [field, editFormData[field]])
+      );
+      const payload = {
+        ...changedFields,
+        ...('departmentId' in changedFields && { departmentId: editFormData.departmentId || null }),
+        ...('phone' in changedFields && { phone: editFormData.phone || null }),
+        ...('baseSalary' in changedFields && { baseSalary: editFormData.baseSalary * 12 }),
+        ...(editFormData.password.trim() && { password: editFormData.password }),
       };
-
-      // Only include password if the manager typed a new one
-      if (editFormData.password.trim().length > 0) {
-        payload.password = editFormData.password;
-      }
 
       const res = await fetch(`/api/employees/${editingEmployee.id}`, {
         method: 'PUT',
@@ -318,7 +360,14 @@ export default function EmployeesPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setEditFormError(data.error || 'Failed to update staff member');
+        const fieldError = Object.entries(data.details ?? {})
+          .flatMap(([field, detail]) => {
+            const message = (detail as { _errors?: string[] } | null)?._errors?.[0];
+            if (!message) return [];
+            const label = field === 'employeeCode' ? 'Staff ID Code' : field === 'password' ? 'Password' : field;
+            return [`${label}: ${message}`];
+          })[0];
+        setEditFormError(fieldError || data.error || 'Failed to update staff member');
         setEditSubmitting(false);
         return;
       }
@@ -326,7 +375,7 @@ export default function EmployeesPage() {
       setShowEditModal(false);
       setEditingEmployee(null);
       setSuccessMessage(`${editFormData.firstName} ${editFormData.lastName}'s profile updated successfully`);
-      loadData();
+      refreshEmployees();
     } catch (err) {
       console.error(err);
       setEditFormError('An unexpected error occurred.');
@@ -376,7 +425,7 @@ export default function EmployeesPage() {
               <Users className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-[#181D27] tracking-tight">
+              <h1 ref={directoryHeading} tabIndex={-1} className="text-xl sm:text-2xl font-bold text-[#181D27] tracking-tight">
                 Staff Directory
               </h1>
               <p className="text-xs text-[#717680] font-normal mt-0.5">
@@ -541,7 +590,7 @@ export default function EmployeesPage() {
                             <input
                               type="checkbox"
                               checked={isChecked}
-                              onChange={() => handleSelectRow(emp.id)}
+                              onChange={() => handleSelectRow(emp)}
                               disabled={isSelf}
                               title={isSelf ? "You cannot select or delete your own account" : undefined}
                               className={`cursor-pointer rounded border-[#EAECF0] text-[#2D7A58] focus:ring-[#2D7A58] ${isSelf ? 'opacity-30 cursor-not-allowed' : ''}`}
@@ -577,7 +626,7 @@ export default function EmployeesPage() {
                         </td>
                         {canViewSalary && (
                           <td className="py-3 px-4 font-semibold text-[#181D27]">
-                            {formatCurrency(emp.baseSalary ? Number(emp.baseSalary) / 12 : 1400)}
+                            {formatCurrency(Number(emp.baseSalary ?? 0) / 12)}
                           </td>
                         )}
                         <td className="py-3 px-4">
@@ -614,7 +663,7 @@ export default function EmployeesPage() {
                                 {canDeleteStaff && (
                                   <button
                                     type="button"
-                                    onClick={() => handleInitiateSingleDelete(emp)}
+                                    onClick={(event) => handleInitiateSingleDelete(emp, event.currentTarget)}
                                     title="Delete staff member"
                                     className="inline-flex items-center justify-center p-1.5 text-slate-400 hover:text-[#D92D20] hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
                                   >
@@ -785,6 +834,7 @@ export default function EmployeesPage() {
                     <input
                       type="number"
                       min={0}
+                      step="any"
                       value={formData.baseSalary}
                       onChange={(e) => setFormData({ ...formData, baseSalary: Number(e.target.value) })}
                       className="w-full px-3 py-2 bg-white border border-[#EAECF0] rounded-lg text-[13px] focus:ring-1 focus:ring-[#2D7A58] outline-none"
@@ -815,7 +865,13 @@ export default function EmployeesPage() {
 
         {/* Edit Employee Modal */}
         {showEditModal && editingEmployee && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <StaffDialog
+            titleId="edit-staff-title"
+            width="max-w-xl"
+            onDismiss={() => {
+              if (!editSubmitting) { setShowEditModal(false); setEditingEmployee(null); }
+            }}
+          >
             <div className="bg-white rounded-2xl max-w-xl w-full p-6 sm:p-7 shadow-2xl border border-[#EAECF0] max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between pb-4 border-b border-[#EAECF0]">
                 <div className="flex items-center gap-3">
@@ -823,7 +879,7 @@ export default function EmployeesPage() {
                     <Pencil className="w-4 h-4 text-[#2D7A58]" />
                   </div>
                   <div>
-                    <h2 className="text-base font-bold text-[#181D27]">Edit Staff Member</h2>
+                    <h2 id="edit-staff-title" className="text-base font-bold text-[#181D27]">Edit Staff Member</h2>
                     <p className="text-[11px] text-[#717680] mt-0.5">
                       Editing {editingEmployee.firstName} {editingEmployee.lastName}{' '}
                       <span className="font-mono">({editingEmployee.employeeCode})</span>
@@ -831,6 +887,8 @@ export default function EmployeesPage() {
                   </div>
                 </div>
                 <button
+                  aria-label="Close edit dialog"
+                  disabled={editSubmitting}
                   onClick={() => { setShowEditModal(false); setEditingEmployee(null); }}
                   className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
                 >
@@ -901,6 +959,7 @@ export default function EmployeesPage() {
                     <input
                       type="text"
                       required
+                      minLength={2}
                       value={editFormData.employeeCode}
                       onChange={(e) => setEditFormData({ ...editFormData, employeeCode: e.target.value })}
                       className="w-full px-3 py-2 bg-white border border-[#EAECF0] rounded-lg text-[13px] focus:ring-1 focus:ring-[#2D7A58] outline-none"
@@ -963,6 +1022,7 @@ export default function EmployeesPage() {
                     <input
                       type="number"
                       min={0}
+                      step="any"
                       value={editFormData.baseSalary}
                       onChange={(e) => setEditFormData({ ...editFormData, baseSalary: Number(e.target.value) })}
                       className="w-full px-3 py-2 bg-white border border-[#EAECF0] rounded-lg text-[13px] focus:ring-1 focus:ring-[#2D7A58] outline-none"
@@ -997,6 +1057,7 @@ export default function EmployeesPage() {
                 <div className="pt-4 flex justify-end gap-2.5 border-t border-[#EAECF0]">
                   <button
                     type="button"
+                    disabled={editSubmitting}
                     onClick={() => { setShowEditModal(false); setEditingEmployee(null); }}
                     className="px-4 py-2 border border-[#EAECF0] rounded-lg text-[13px] font-semibold text-[#344054] hover:bg-slate-50"
                   >
@@ -1019,26 +1080,31 @@ export default function EmployeesPage() {
                 </div>
               </form>
             </div>
-          </div>
+          </StaffDialog>
         )}
 
         {/* Delete Confirmation Modal */}
         {showDeleteModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <StaffDialog
+            titleId="delete-staff-title"
+            restoreFocus={deleteTrigger}
+            width="max-w-md"
+            onDismiss={() => { if (!deleteSubmitting) setShowDeleteModal(false); }}
+          >
             <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-[#EAECF0] overflow-hidden">
               <div className="flex items-start gap-3.5">
                 <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center text-[#D92D20] shrink-0">
                   <Trash2 className="w-5 h-5" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-base font-bold text-[#181D27]">
-                    {isBulkDelete ? `Delete ${selectedCount} Staff Members` : 'Delete Staff Member'}
+                  <h3 id="delete-staff-title" className="text-base font-bold text-[#181D27]">
+                    {isBulkDelete ? `Delete ${bulkDeleteSnapshot.length} Staff Members` : 'Delete Staff Member'}
                   </h3>
                   <p className="text-xs text-[#535862] mt-1">
                     {isBulkDelete ? (
                       <>
                         Are you sure you want to permanently delete the{' '}
-                        <strong className="text-[#181D27]">{selectedCount} selected staff members</strong>?
+                        <strong className="text-[#181D27]">{bulkDeleteSnapshot.length} selected staff members</strong>?
                       </>
                     ) : (
                       <>
@@ -1049,12 +1115,22 @@ export default function EmployeesPage() {
                   </p>
                 </div>
                 <button
+                  aria-label="Close delete dialog"
+                  disabled={deleteSubmitting}
                   onClick={() => setShowDeleteModal(false)}
                   className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
+
+              {isBulkDelete && (
+                <ul className="mt-3 max-h-40 list-disc overflow-y-auto pl-5 text-xs text-[#535862]">
+                  {bulkDeleteSnapshot.map(({ id, name, code }) => (
+                    <li key={id}>{name} <span className="font-mono">({code})</span></li>
+                  ))}
+                </ul>
+              )}
 
               <div className="mt-4 p-3 bg-[#FEF3F2] border border-[#FECDCA] rounded-xl flex items-start gap-2.5">
                 <AlertTriangle className="w-4 h-4 text-[#D92D20] shrink-0 mt-0.5" />
@@ -1072,6 +1148,7 @@ export default function EmployeesPage() {
               <div className="mt-6 flex items-center justify-end gap-2.5 pt-3 border-t border-[#EAECF0]">
                 <button
                   type="button"
+                  data-dialog-focus
                   onClick={() => setShowDeleteModal(false)}
                   disabled={deleteSubmitting}
                   className="px-4 py-2 border border-[#EAECF0] rounded-lg text-[13px] font-semibold text-[#344054] hover:bg-slate-50 transition-colors"
@@ -1092,13 +1169,13 @@ export default function EmployeesPage() {
                   ) : (
                     <>
                       <Trash2 className="w-4 h-4" />
-                      <span>{isBulkDelete ? `Delete ${selectedCount} Staff` : 'Delete Staff Member'}</span>
+                      <span>{isBulkDelete ? `Delete ${bulkDeleteSnapshot.length} Staff` : 'Delete Staff Member'}</span>
                     </>
                   )}
                 </button>
               </div>
             </div>
-          </div>
+          </StaffDialog>
         )}
       </div>
     </DashboardLayout>

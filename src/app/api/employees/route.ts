@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getSession, hashPassword } from '@/lib/auth';
+import { isCurrentManager } from '@/lib/employee-access';
 import { Role, EmploymentStatus } from '@prisma/client';
 import { z } from 'zod';
 
@@ -156,11 +157,16 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   try {
     const session = await getSession();
-    if (!session || session.role !== Role.MANAGER) {
+    if (!session || !(await isCurrentManager(session))) {
       return NextResponse.json({ error: 'Forbidden: Manager access required' }, { status: 403 });
     }
 
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
     const rawIds: string[] = Array.isArray(body?.ids)
       ? body.ids
       : body?.id
@@ -204,7 +210,7 @@ export async function DELETE(request: Request) {
       .map((emp) => emp.userId)
       .filter((uid): uid is string => Boolean(uid));
 
-    await prisma.$transaction(async (tx) => {
+    const count = await prisma.$transaction(async (tx) => {
       // 1. Unlink subordinates
       await tx.employee.updateMany({
         where: { managerId: { in: validIds } },
@@ -229,7 +235,7 @@ export async function DELETE(request: Request) {
       });
 
       // 3. Delete employee records
-      await tx.employee.deleteMany({
+      const deleted = await tx.employee.deleteMany({
         where: { id: { in: validIds } },
       });
 
@@ -239,12 +245,15 @@ export async function DELETE(request: Request) {
           where: { id: { in: validUserIds } },
         });
       }
+      return deleted.count;
     });
 
     return NextResponse.json({
       success: true,
-      count: validIds.length,
-      message: `Successfully deleted ${validIds.length} staff member${validIds.length > 1 ? 's' : ''}`,
+      count,
+      message: count === 0
+        ? 'No staff members remained to delete'
+        : `Successfully deleted ${count} staff member${count > 1 ? 's' : ''}`,
     });
   } catch (error) {
     console.error('Batch delete employees error:', error);
