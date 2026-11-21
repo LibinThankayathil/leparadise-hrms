@@ -38,7 +38,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (session.role !== Role.MANAGER) {
+    if (session.role !== Role.MANAGER || !(await isCurrentManager(session))) {
       return NextResponse.json({ error: 'Forbidden: Manager access required' }, { status: 403 });
     }
 
