@@ -577,7 +577,6 @@ export default function EmployeesPage() {
                 ) : (
                   employees.map((emp) => {
                     const isChecked = !!selectedRows[emp.id];
-                    const isPending = emp.status === 'ON_LEAVE';
                     const isSelf = isSelfEmployee(emp);
 
                     return (
@@ -630,7 +629,11 @@ export default function EmployeesPage() {
                           </td>
                         )}
                         <td className="py-3 px-4">
-                          {isPending ? (
+                          {emp.status === 'TERMINATED' ? (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#FEF3F2] text-[#B42318] border border-[#FECDCA]">
+                              Terminated
+                            </span>
+                          ) : emp.status === 'ON_LEAVE' ? (
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#FEF6EE] text-[#B93815] border border-[#F9DBAF]">
                               On Leave
                             </span>

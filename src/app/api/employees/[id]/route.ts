@@ -128,6 +128,11 @@ export async function PUT(
       if (data.email) userUpdate.email = data.email;
       if (data.role) userUpdate.role = data.role;
       if (data.password) userUpdate.passwordHash = await hashPassword(data.password);
+      if (data.status === EmploymentStatus.TERMINATED) {
+        userUpdate.isActive = false;
+      } else if (data.status === EmploymentStatus.ACTIVE) {
+        userUpdate.isActive = true;
+      }
 
       if (Object.keys(userUpdate).length > 0) {
         await tx.user.update({
