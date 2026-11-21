@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { DashboardLayout } from '@/components/DashboardLayout';
+import { EmployeeSelfServiceDashboard } from '@/components/dashboard/EmployeeSelfServiceDashboard';
 import { useAuth } from '@/context/AuthContext';
 import { 
   Users, 
@@ -78,6 +79,15 @@ export default function DashboardPage() {
   const todayRecord = attendance?.todayRecord;
   const isClockedIn = !!todayRecord?.clockIn;
   const isClockedOut = !!todayRecord?.clockOut;
+
+  // Dedicated Employee Self-Service Dashboard for regular staff
+  if (isStaff) {
+    return (
+      <DashboardLayout actionLabel="Self Service">
+        <EmployeeSelfServiceDashboard />
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout actionLabel="Daily Operations">
