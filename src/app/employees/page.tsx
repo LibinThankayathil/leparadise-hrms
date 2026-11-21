@@ -10,14 +10,20 @@ import {
   Search, 
   ChevronDown, 
   FileText, 
-  MoreHorizontal, 
-  X
+  X,
+  Trash2,
+  AlertTriangle,
+  CheckCircle2,
+  Loader2,
+  Pencil
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 
 export default function EmployeesPage() {
   const { user, loading: authLoading } = useAuth();
   const canAddStaff = Permissions.canAddStaff(user?.role);
+  const canEditStaff = Permissions.canEditStaff(user?.role);
+  const canDeleteStaff = Permissions.canDeleteStaff(user?.role);
   const canViewSalary = user?.role === 'MANAGER';
 
   useEffect(() => {
@@ -36,6 +42,33 @@ export default function EmployeesPage() {
   const [formError, setFormError] = useState('');
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [selectedRows, setSelectedRows] = useState<Record<string, boolean>>({});
+
+  // Delete modal state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [staffToDelete, setStaffToDelete] = useState<{ id: string; name: string; code: string } | null>(null);
+  const [isBulkDelete, setIsBulkDelete] = useState(false);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+
+  // Edit modal state
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState<any>(null);
+  const [editFormError, setEditFormError] = useState('');
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    password: '',
+    employeeCode: '',
+    designation: '',
+    departmentId: '',
+    role: 'EMPLOYEE',
+    phone: '',
+    baseSalary: 0,
+    status: 'ACTIVE',
+  });
 
   // Form State
   const [formData, setFormData] = useState({
@@ -82,10 +115,31 @@ export default function EmployeesPage() {
     loadData();
   }, [search, selectedDept, selectedStatus]);
 
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => {
+        setSuccessMessage('');
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage]);
+
+  const isSelfEmployee = (emp: any): boolean => {
+    return Boolean(
+      (user?.employee?.id && emp.id === user.employee.id) ||
+      (user?.id && emp.userId === user.id) ||
+      (user?.email && emp.user?.email === user.email)
+    );
+  };
+
+  const selectableEmployees = employees.filter((emp) => !isSelfEmployee(emp));
+  const isAllSelected = selectableEmployees.length > 0 && selectableEmployees.every((emp) => selectedRows[emp.id]);
+  const selectedCount = Object.keys(selectedRows).filter((id) => selectedRows[id]).length;
+
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     const checked = e.target.checked;
     const next: Record<string, boolean> = {};
-    employees.forEach((emp) => {
+    selectableEmployees.forEach((emp) => {
       next[emp.id] = checked;
     });
     setSelectedRows(next);
@@ -93,6 +147,80 @@ export default function EmployeesPage() {
 
   const handleSelectRow = (id: string) => {
     setSelectedRows((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const handleInitiateSingleDelete = (emp: any) => {
+    setStaffToDelete({
+      id: emp.id,
+      name: `${emp.firstName} ${emp.lastName}`,
+      code: emp.employeeCode,
+    });
+    setIsBulkDelete(false);
+    setDeleteError('');
+    setShowDeleteModal(true);
+  };
+
+  const handleInitiateBulkDelete = () => {
+    const selectedIds = Object.keys(selectedRows).filter((id) => selectedRows[id]);
+    if (selectedIds.length === 0) return;
+    setIsBulkDelete(true);
+    setStaffToDelete(null);
+    setDeleteError('');
+    setShowDeleteModal(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    setDeleteSubmitting(true);
+    setDeleteError('');
+
+    try {
+      if (isBulkDelete) {
+        const selectedIds = Object.keys(selectedRows).filter((id) => selectedRows[id]);
+        const res = await fetch('/api/employees', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: selectedIds }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          setDeleteError(data.error || 'Failed to delete selected staff members');
+          setDeleteSubmitting(false);
+          return;
+        }
+
+        setShowDeleteModal(false);
+        setSelectedRows({});
+        setSuccessMessage(data.message || `Successfully deleted ${selectedIds.length} staff member(s)`);
+        loadData();
+      } else if (staffToDelete) {
+        const res = await fetch(`/api/employees/${staffToDelete.id}`, {
+          method: 'DELETE',
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          setDeleteError(data.error || 'Failed to delete staff member');
+          setDeleteSubmitting(false);
+          return;
+        }
+
+        setShowDeleteModal(false);
+        setStaffToDelete(null);
+        setSelectedRows((prev) => {
+          const next = { ...prev };
+          delete next[staffToDelete.id];
+          return next;
+        });
+        setSuccessMessage(data.message || 'Staff member deleted successfully');
+        loadData();
+      }
+    } catch (err) {
+      console.error(err);
+      setDeleteError('An unexpected network error occurred.');
+    } finally {
+      setDeleteSubmitting(false);
+    }
   };
 
   const handleCreateEmployee = async (e: React.FormEvent) => {
@@ -128,6 +256,7 @@ export default function EmployeesPage() {
         phone: '',
         baseSalary: 1400,
       });
+      setSuccessMessage('New staff member added successfully');
       loadData();
     } catch (err) {
       console.error(err);
@@ -137,11 +266,86 @@ export default function EmployeesPage() {
     }
   };
 
-  const isAllSelected = employees.length > 0 && employees.every((emp) => selectedRows[emp.id]);
+  const handleOpenEdit = (emp: any) => {
+    setEditingEmployee(emp);
+    setEditFormData({
+      firstName: emp.firstName || '',
+      lastName: emp.lastName || '',
+      email: emp.user?.email || '',
+      password: '',
+      employeeCode: emp.employeeCode || '',
+      designation: emp.designation || '',
+      departmentId: emp.departmentId || emp.department?.id || '',
+      role: emp.user?.role || 'EMPLOYEE',
+      phone: emp.phone || '',
+      baseSalary: emp.baseSalary ? Number(emp.baseSalary) : 0,
+      status: emp.status || 'ACTIVE',
+    });
+    setEditFormError('');
+    setShowEditModal(true);
+  };
+
+  const handleUpdateEmployee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEditFormError('');
+    setEditSubmitting(true);
+
+    try {
+      const payload: any = {
+        firstName: editFormData.firstName,
+        lastName: editFormData.lastName,
+        email: editFormData.email,
+        employeeCode: editFormData.employeeCode,
+        designation: editFormData.designation,
+        departmentId: editFormData.departmentId || null,
+        role: editFormData.role,
+        phone: editFormData.phone || null,
+        baseSalary: editFormData.baseSalary,
+        status: editFormData.status,
+      };
+
+      // Only include password if the manager typed a new one
+      if (editFormData.password.trim().length > 0) {
+        payload.password = editFormData.password;
+      }
+
+      const res = await fetch(`/api/employees/${editingEmployee.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setEditFormError(data.error || 'Failed to update staff member');
+        setEditSubmitting(false);
+        return;
+      }
+
+      setShowEditModal(false);
+      setEditingEmployee(null);
+      setSuccessMessage(`${editFormData.firstName} ${editFormData.lastName}'s profile updated successfully`);
+      loadData();
+    } catch (err) {
+      console.error(err);
+      setEditFormError('An unexpected error occurred.');
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
 
   if (user?.role === 'EMPLOYEE') {
     return null;
   }
+
+  // Calculate total table columns
+  const hasActions = canEditStaff || canDeleteStaff;
+  let totalColumns = 6; // Staff ID, Name, Dept, Designation, Email, Mobile
+  if (canDeleteStaff) totalColumns += 1; // Checkbox
+  if (canViewSalary) totalColumns += 1; // Salary
+  totalColumns += 1; // Status
+  if (hasActions) totalColumns += 1; // Actions
 
   return (
     <DashboardLayout 
@@ -149,6 +353,22 @@ export default function EmployeesPage() {
       actionLabel={canAddStaff ? '+ Add New Staff' : undefined}
     >
       <div className="space-y-6">
+        {/* Success Alert Banner */}
+        {successMessage && (
+          <div className="p-3.5 bg-[#EAF6ED] border border-[#D1EBD9] text-[#2D7A58] rounded-xl text-xs font-semibold flex items-center justify-between shadow-xs animate-in fade-in duration-200">
+            <div className="flex items-center gap-2.5">
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-[#2D7A58]" />
+              <span>{successMessage}</span>
+            </div>
+            <button
+              onClick={() => setSuccessMessage('')}
+              className="text-[#2D7A58] hover:opacity-70 p-0.5"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
         {/* Page Title Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
@@ -235,19 +455,49 @@ export default function EmployeesPage() {
           </div>
         </div>
 
+        {/* Bulk Action Bar (when rows are selected) */}
+        {selectedCount > 0 && canDeleteStaff && (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 bg-[#FEF3F2] border border-[#FECDCA] rounded-xl text-[13px] shadow-xs animate-in fade-in duration-150">
+            <div className="flex items-center gap-2.5 text-[#B42318] font-medium">
+              <span className="w-2 h-2 rounded-full bg-[#D92D20] animate-pulse" />
+              <span>
+                <strong>{selectedCount}</strong> staff member{selectedCount > 1 ? 's' : ''} selected
+              </span>
+            </div>
+            <div className="flex items-center gap-2 self-end sm:self-auto">
+              <button
+                type="button"
+                onClick={() => setSelectedRows({})}
+                className="px-3 py-1.5 text-slate-600 hover:text-slate-800 text-xs font-semibold rounded-lg hover:bg-white/60 transition-colors cursor-pointer"
+              >
+                Clear selection
+              </button>
+              <button
+                type="button"
+                onClick={handleInitiateBulkDelete}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#D92D20] hover:bg-[#B42318] text-white rounded-lg text-xs font-semibold shadow-sm transition-all cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete Selected ({selectedCount})</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Data Table */}
         <div className="border border-[#EAECF0] rounded-xl overflow-hidden shadow-subtle bg-white">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-[13px] min-w-[760px]">
               <thead>
                 <tr className="bg-[#FAFBFB] border-b border-[#EAECF0] text-[11px] font-semibold text-[#535862]">
-                  {canAddStaff && (
+                  {canDeleteStaff && (
                     <th className="py-3 px-4 w-10">
                       <input
                         type="checkbox"
                         checked={isAllSelected}
                         onChange={handleSelectAll}
-                        className="cursor-pointer"
+                        disabled={selectableEmployees.length === 0}
+                        className="cursor-pointer rounded border-[#EAECF0] text-[#2D7A58] focus:ring-[#2D7A58]"
                       />
                     </th>
                   )}
@@ -259,18 +509,19 @@ export default function EmployeesPage() {
                   <th className="py-3 px-4">Mobile</th>
                   {canViewSalary && <th className="py-3 px-4">Monthly Salary</th>}
                   <th className="py-3 px-4">Status</th>
+                  {hasActions && <th className="py-3 px-4 text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#EAECF0] text-[#181D27]">
                 {loading ? (
                   <tr>
-                    <td colSpan={canViewSalary ? (canAddStaff ? 9 : 8) : (canAddStaff ? 8 : 7)} className="py-8">
+                    <td colSpan={totalColumns} className="py-8">
                       <InlineLoader message="Loading staff directory..." />
                     </td>
                   </tr>
                 ) : employees.length === 0 ? (
                   <tr>
-                    <td colSpan={canViewSalary ? (canAddStaff ? 9 : 8) : (canAddStaff ? 8 : 7)} className="py-12 text-center text-slate-400 text-xs">
+                    <td colSpan={totalColumns} className="py-12 text-center text-slate-400 text-xs">
                       No staff records found.
                     </td>
                   </tr>
@@ -278,24 +529,27 @@ export default function EmployeesPage() {
                   employees.map((emp) => {
                     const isChecked = !!selectedRows[emp.id];
                     const isPending = emp.status === 'ON_LEAVE';
+                    const isSelf = isSelfEmployee(emp);
 
                     return (
                       <tr 
                         key={emp.id} 
                         className={`hover:bg-[#F9FAFB] transition-colors ${isChecked ? 'bg-[#F4F6F5]' : ''}`}
                       >
-                        {canAddStaff && (
+                        {canDeleteStaff && (
                           <td className="py-3 px-4">
                             <input
                               type="checkbox"
                               checked={isChecked}
                               onChange={() => handleSelectRow(emp.id)}
-                              className="cursor-pointer"
+                              disabled={isSelf}
+                              title={isSelf ? "You cannot select or delete your own account" : undefined}
+                              className={`cursor-pointer rounded border-[#EAECF0] text-[#2D7A58] focus:ring-[#2D7A58] ${isSelf ? 'opacity-30 cursor-not-allowed' : ''}`}
                             />
                           </td>
                         )}
                         <td className="py-3 px-4 font-normal text-[#535862] font-mono text-xs">
-                          #{emp.employeeCode.replace(/\D/g, '') || '102112'}
+                          #{emp.employeeCode?.replace(/\D/g, '') || emp.employeeCode || '102112'}
                         </td>
                         <td className="py-3 px-4 font-semibold text-[#181D27]">
                           <div className="flex items-center gap-2.5">
@@ -337,6 +591,40 @@ export default function EmployeesPage() {
                             </span>
                           )}
                         </td>
+
+                        {/* Actions column */}
+                        {hasActions && (
+                          <td className="py-3 px-4 text-right">
+                            {isSelf ? (
+                              <span className="text-[11px] font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded">
+                                You
+                              </span>
+                            ) : (
+                              <div className="inline-flex items-center gap-0.5">
+                                {canEditStaff && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenEdit(emp)}
+                                    title="Edit staff member"
+                                    className="inline-flex items-center justify-center p-1.5 text-slate-400 hover:text-[#2D7A58] hover:bg-[#EAF6ED] rounded-lg transition-colors cursor-pointer"
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </button>
+                                )}
+                                {canDeleteStaff && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleInitiateSingleDelete(emp)}
+                                    title="Delete staff member"
+                                    className="inline-flex items-center justify-center p-1.5 text-slate-400 hover:text-[#D92D20] hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                        )}
                       </tr>
                     );
                   })
@@ -521,6 +809,294 @@ export default function EmployeesPage() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Employee Modal */}
+        {showEditModal && editingEmployee && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+            <div className="bg-white rounded-2xl max-w-xl w-full p-6 sm:p-7 shadow-2xl border border-[#EAECF0] max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between pb-4 border-b border-[#EAECF0]">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-[#EAF6ED] flex items-center justify-center shrink-0">
+                    <Pencil className="w-4 h-4 text-[#2D7A58]" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-[#181D27]">Edit Staff Member</h2>
+                    <p className="text-[11px] text-[#717680] mt-0.5">
+                      Editing {editingEmployee.firstName} {editingEmployee.lastName}{' '}
+                      <span className="font-mono">({editingEmployee.employeeCode})</span>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => { setShowEditModal(false); setEditingEmployee(null); }}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {editFormError && (
+                <div className="mt-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg text-xs font-medium">
+                  {editFormError}
+                </div>
+              )}
+
+              <form onSubmit={handleUpdateEmployee} className="mt-5 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#344054] mb-1">First Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editFormData.firstName}
+                      onChange={(e) => setEditFormData({ ...editFormData, firstName: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-[#EAECF0] rounded-lg text-[13px] focus:ring-1 focus:ring-[#2D7A58] outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-[#344054] mb-1">Last Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editFormData.lastName}
+                      onChange={(e) => setEditFormData({ ...editFormData, lastName: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-[#EAECF0] rounded-lg text-[13px] focus:ring-1 focus:ring-[#2D7A58] outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#344054] mb-1">Email Address *</label>
+                    <input
+                      type="email"
+                      required
+                      value={editFormData.email}
+                      onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-[#EAECF0] rounded-lg text-[13px] focus:ring-1 focus:ring-[#2D7A58] outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-[#344054] mb-1">
+                      New Password
+                      <span className="font-normal text-[#717680] ml-1">(leave blank to keep current)</span>
+                    </label>
+                    <input
+                      type="password"
+                      minLength={6}
+                      placeholder="••••••••"
+                      value={editFormData.password}
+                      onChange={(e) => setEditFormData({ ...editFormData, password: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-[#EAECF0] rounded-lg text-[13px] focus:ring-1 focus:ring-[#2D7A58] outline-none placeholder:text-slate-300"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#344054] mb-1">Staff ID Code *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editFormData.employeeCode}
+                      onChange={(e) => setEditFormData({ ...editFormData, employeeCode: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-[#EAECF0] rounded-lg text-[13px] focus:ring-1 focus:ring-[#2D7A58] outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-[#344054] mb-1">Designation *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editFormData.designation}
+                      onChange={(e) => setEditFormData({ ...editFormData, designation: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-[#EAECF0] rounded-lg text-[13px] focus:ring-1 focus:ring-[#2D7A58] outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#344054] mb-1">Department</label>
+                    <select
+                      value={editFormData.departmentId}
+                      onChange={(e) => setEditFormData({ ...editFormData, departmentId: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-[#EAECF0] rounded-lg text-[13px] focus:ring-1 focus:ring-[#2D7A58] outline-none"
+                    >
+                      <option value="">No Department</option>
+                      {departments.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-[#344054] mb-1">System Role</label>
+                    <select
+                      value={editFormData.role}
+                      onChange={(e) => setEditFormData({ ...editFormData, role: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-[#EAECF0] rounded-lg text-[13px] focus:ring-1 focus:ring-[#2D7A58] outline-none"
+                    >
+                      <option value="EMPLOYEE">Staff Employee</option>
+                      <option value="MANAGER">Manager</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#344054] mb-1">Mobile Number</label>
+                    <input
+                      type="text"
+                      placeholder="+88 01766703570"
+                      value={editFormData.phone}
+                      onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-[#EAECF0] rounded-lg text-[13px] focus:ring-1 focus:ring-[#2D7A58] outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-[#344054] mb-1">Monthly Salary ($)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={editFormData.baseSalary}
+                      onChange={(e) => setEditFormData({ ...editFormData, baseSalary: Number(e.target.value) })}
+                      className="w-full px-3 py-2 bg-white border border-[#EAECF0] rounded-lg text-[13px] focus:ring-1 focus:ring-[#2D7A58] outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#344054] mb-1">Employment Status</label>
+                  <div className="flex items-center gap-2">
+                    {[
+                      { value: 'ACTIVE', label: 'Active', color: 'bg-[#EAF6ED] text-[#2D7A58] border-[#D1EBD9]' },
+                      { value: 'ON_LEAVE', label: 'On Leave', color: 'bg-[#FEF6EE] text-[#B93815] border-[#F9DBAF]' },
+                      { value: 'TERMINATED', label: 'Terminated', color: 'bg-[#FEF3F2] text-[#B42318] border-[#FECDCA]' },
+                    ].map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setEditFormData({ ...editFormData, status: opt.value })}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                          editFormData.status === opt.value
+                            ? `${opt.color} ring-1 ring-offset-1 ring-current`
+                            : 'bg-white text-[#535862] border-[#EAECF0] hover:border-slate-300'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pt-4 flex justify-end gap-2.5 border-t border-[#EAECF0]">
+                  <button
+                    type="button"
+                    onClick={() => { setShowEditModal(false); setEditingEmployee(null); }}
+                    className="px-4 py-2 border border-[#EAECF0] rounded-lg text-[13px] font-semibold text-[#344054] hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={editSubmitting}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#2D7A58] hover:bg-[#256549] text-white rounded-lg text-[13px] font-semibold shadow-sm disabled:opacity-50"
+                  >
+                    {editSubmitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Saving...</span>
+                      </>
+                    ) : (
+                      <span>Save Changes</span>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {showDeleteModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-[#EAECF0] overflow-hidden">
+              <div className="flex items-start gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center text-[#D92D20] shrink-0">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-base font-bold text-[#181D27]">
+                    {isBulkDelete ? `Delete ${selectedCount} Staff Members` : 'Delete Staff Member'}
+                  </h3>
+                  <p className="text-xs text-[#535862] mt-1">
+                    {isBulkDelete ? (
+                      <>
+                        Are you sure you want to permanently delete the{' '}
+                        <strong className="text-[#181D27]">{selectedCount} selected staff members</strong>?
+                      </>
+                    ) : (
+                      <>
+                        Are you sure you want to delete <strong className="text-[#181D27]">{staffToDelete?.name}</strong>{' '}
+                        <span className="font-mono text-slate-500">({staffToDelete?.code})</span>?
+                      </>
+                    )}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="mt-4 p-3 bg-[#FEF3F2] border border-[#FECDCA] rounded-xl flex items-start gap-2.5">
+                <AlertTriangle className="w-4 h-4 text-[#D92D20] shrink-0 mt-0.5" />
+                <p className="text-[12px] text-[#B42318] leading-relaxed">
+                  <strong>Warning:</strong> This action cannot be undone. Their profile, system login, attendance records, leave history, and payroll data will be permanently removed.
+                </p>
+              </div>
+
+              {deleteError && (
+                <div className="mt-3 p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs font-medium">
+                  {deleteError}
+                </div>
+              )}
+
+              <div className="mt-6 flex items-center justify-end gap-2.5 pt-3 border-t border-[#EAECF0]">
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteModal(false)}
+                  disabled={deleteSubmitting}
+                  className="px-4 py-2 border border-[#EAECF0] rounded-lg text-[13px] font-semibold text-[#344054] hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDelete}
+                  disabled={deleteSubmitting}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#D92D20] hover:bg-[#B42318] text-white rounded-lg text-[13px] font-semibold shadow-sm transition-all disabled:opacity-50 cursor-pointer"
+                >
+                  {deleteSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Deleting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      <span>{isBulkDelete ? `Delete ${selectedCount} Staff` : 'Delete Staff Member'}</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         )}
