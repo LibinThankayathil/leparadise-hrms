@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
 import { LeaveStatus, Role } from '@prisma/client';
 import { z } from 'zod';
+import { sendPushToManagers } from '@/lib/push';
 
 export const dynamic = 'force-dynamic';
 
@@ -125,6 +126,18 @@ export async function POST(request: Request) {
         leaveType: true,
       },
     });
+
+    // Notify all managers that a new leave request has been submitted
+    const employee = await prisma.employee.findUnique({
+      where: { id: session.employeeId },
+      select: { firstName: true, lastName: true },
+    });
+    sendPushToManagers({
+      title: '📋 New Leave Request',
+      body: `${employee?.firstName ?? 'An employee'} ${employee?.lastName ?? ''} has submitted a ${leaveRequest.leaveType.name} request.`,
+      url: '/leaves',
+      tag: `leave-submitted-${leaveRequest.id}`,
+    }).catch(console.error); // fire-and-forget, don't block the response
 
     return NextResponse.json({ success: true, leaveRequest }, { status: 201 });
   } catch (error) {

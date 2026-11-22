@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
 import { EmploymentStatus, PayrollStatus, Role } from '@prisma/client';
 import { z } from 'zod';
+import { sendPushToUser } from '@/lib/push';
 
 export const dynamic = 'force-dynamic';
 
@@ -119,6 +120,27 @@ export async function POST(request: Request) {
 
       createdPayslips.push(payslip);
     }
+
+    // Fire-and-forget: notify each employee their payslip is ready
+    const monthNames = [
+      'January','February','March','April','May','June',
+      'July','August','September','October','November','December'
+    ];
+    const monthLabel = monthNames[(month - 1)] ?? `Month ${month}`;
+    const employeesWithUsers = await prisma.employee.findMany({
+      where: { status: EmploymentStatus.ACTIVE },
+      select: { userId: true },
+    });
+    Promise.allSettled(
+      employeesWithUsers.map((emp) =>
+        sendPushToUser(emp.userId, {
+          title: '💰 Payslip Published',
+          body: `Your ${monthLabel} ${year} payslip is ready. Tap to view.`,
+          url: '/payroll',
+          tag: `payslip-${month}-${year}`,
+        })
+      )
+    ).catch(console.error);
 
     return NextResponse.json({
       success: true,
