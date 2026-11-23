@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
-import { EmploymentStatus, LeaveStatus, Role } from '@prisma/client';
+import { AttendanceStatus, EmploymentStatus, LeaveStatus, Role } from '@prisma/client';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +18,10 @@ export async function GET(request: Request) {
     const isEmployee = session.role === Role.EMPLOYEE;
 
     if (isEmployee) {
+      // Start and end of current month
+      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
+
       // Employee-specific dashboard stats
       const [
         totalEmployees,
@@ -25,6 +29,7 @@ export async function GET(request: Request) {
         myAttendanceToday,
         myPendingLeavesCount,
         myRecentLeaves,
+        monthRecords,
       ] = await Promise.all([
         prisma.employee.count({ where: { status: EmploymentStatus.ACTIVE } }),
         prisma.department.count(),
@@ -49,7 +54,21 @@ export async function GET(request: Request) {
               },
             })
           : [],
+        session.employeeId
+          ? prisma.attendanceRecord.findMany({
+              where: {
+                employeeId: session.employeeId,
+                date: { gte: startOfMonth, lte: endOfMonth },
+              },
+              select: { status: true },
+            })
+          : [],
       ]);
+
+      const presentCount = monthRecords.filter((r) => r.status === AttendanceStatus.PRESENT).length;
+      const lateCount = monthRecords.filter((r) => r.status === AttendanceStatus.LATE).length;
+      const totalLogged = presentCount + lateCount;
+      const onTimeRate = totalLogged > 0 ? Math.round((presentCount / totalLogged) * 100) : 100;
 
       return NextResponse.json({
         totalEmployees,
@@ -59,6 +78,12 @@ export async function GET(request: Request) {
         recentLeaves: myRecentLeaves,
         userRole: session.role,
         isClockedIn: !!myAttendanceToday?.clockIn,
+        monthStats: {
+          totalLogged,
+          presentCount,
+          lateCount,
+          onTimeRate,
+        },
       });
     }
 

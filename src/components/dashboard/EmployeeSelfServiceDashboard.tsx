@@ -6,12 +6,9 @@ import {
   Clock, 
   CalendarDays, 
   CheckCircle2, 
-  AlertCircle, 
   Building2, 
   CreditCard, 
-  ArrowUpRight, 
   ChevronRight, 
-  Printer, 
   X, 
   Loader2, 
   UserCheck, 
@@ -19,10 +16,16 @@ import {
   CalendarCheck,
   Calendar,
   Sparkles,
-  Info
+  Mail,
+  Phone,
+  Briefcase,
+  ShieldCheck,
+  ArrowRight,
+  User,
+  CalendarRange
 } from 'lucide-react';
 import { InlineLoader } from '@/components/LoadingScreen';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatDate } from '@/lib/utils';
 
 export function EmployeeSelfServiceDashboard() {
   const [data, setData] = useState<any>(null);
@@ -30,20 +33,6 @@ export function EmployeeSelfServiceDashboard() {
   const [clockLoading, setClockLoading] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  // Leave Modal State
-  const [showLeaveModal, setShowLeaveModal] = useState(false);
-  const [leaveSubmitting, setLeaveSubmitting] = useState(false);
-  const [leaveError, setLeaveError] = useState('');
-  const [leaveForm, setLeaveForm] = useState({
-    leaveTypeId: '',
-    startDate: '',
-    endDate: '',
-    reason: '',
-  });
-
-  // Payslip Modal State
-  const [showPayslipModal, setShowPayslipModal] = useState(false);
 
   // Digital clock tick
   useEffect(() => {
@@ -65,9 +54,6 @@ export function EmployeeSelfServiceDashboard() {
       if (res.ok) {
         const d = await res.json();
         setData(d);
-        if (d.leaveTypes && d.leaveTypes.length > 0 && !leaveForm.leaveTypeId) {
-          setLeaveForm((prev) => ({ ...prev, leaveTypeId: d.leaveTypes[0].id }));
-        }
       }
     } catch (e) {
       console.error('Failed to load employee self-service data:', e);
@@ -108,42 +94,6 @@ export function EmployeeSelfServiceDashboard() {
     }
   };
 
-  const handleApplyLeave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLeaveError('');
-    setLeaveSubmitting(true);
-
-    try {
-      const res = await fetch('/api/leaves', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(leaveForm),
-      });
-
-      const d = await res.json();
-      if (!res.ok) {
-        setLeaveError(d.error || 'Failed to submit leave application');
-        setLeaveSubmitting(false);
-        return;
-      }
-
-      setShowLeaveModal(false);
-      setToastMessage('Leave application submitted successfully for manager review');
-      setLeaveForm({
-        leaveTypeId: data?.leaveTypes?.[0]?.id || '',
-        startDate: '',
-        endDate: '',
-        reason: '',
-      });
-      loadDashboard();
-    } catch (err) {
-      console.error(err);
-      setLeaveError('An unexpected error occurred while submitting.');
-    } finally {
-      setLeaveSubmitting(false);
-    }
-  };
-
   if (loading) {
     return (
       <div className="py-24">
@@ -157,15 +107,7 @@ export function EmployeeSelfServiceDashboard() {
   const isClockedIn = !!todayRecord?.clockIn;
   const isClockedOut = !!todayRecord?.clockOut;
   const monthStats = data?.monthAttendanceStats || { totalLogged: 0, presentCount: 0, lateCount: 0 };
-  const leaveBalances: any[] = data?.leaveBalances || [];
-  const recentLeaves: any[] = data?.recentLeaves || [];
-  const latestPayslip = data?.latestPayslip;
-
-  // Calculate total leave remaining across all balances
-  const totalLeaveAvailable = leaveBalances.reduce(
-    (acc, b) => acc + Math.max(0, b.totalDays - b.usedDays),
-    0
-  );
+  const thisWeekAttendance: any[] = data?.thisWeekAttendance || [];
 
   // Time of day greeting
   const hour = currentTime.getHours();
@@ -182,17 +124,13 @@ export function EmployeeSelfServiceDashboard() {
     }
   }
 
-  // Calculate estimated days in selected leave form
-  let formDaysCount = 0;
-  if (leaveForm.startDate && leaveForm.endDate) {
-    const s = new Date(leaveForm.startDate);
-    const e = new Date(leaveForm.endDate);
-    if (e >= s) {
-      formDaysCount = Math.ceil(Math.abs(e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-    }
-  }
-
-  const selectedBalance = leaveBalances.find((b) => b.leaveTypeId === leaveForm.leaveTypeId);
+  // Generate last 7 days list for the weekly attendance activity strip
+  const last7Days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
 
   return (
     <div className="space-y-6">
@@ -271,7 +209,7 @@ export function EmployeeSelfServiceDashboard() {
         </div>
       </div>
 
-      {/* 2. Top 4 Metric Insight Cards */}
+      {/* 2. Top Metric Cards (Focusing strictly on Dashboard & Profile details) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Today's Shift */}
         <div className="bg-white p-5 rounded-xl border border-[#EAECF0] shadow-subtle flex items-center justify-between">
@@ -293,26 +231,10 @@ export function EmployeeSelfServiceDashboard() {
           </div>
         </div>
 
-        {/* Card 2: Leave Balance */}
+        {/* Card 2: Monthly Attendance Record */}
         <div className="bg-white p-5 rounded-xl border border-[#EAECF0] shadow-subtle flex items-center justify-between">
           <div>
-            <p className="text-[11px] font-semibold text-[#717680] uppercase tracking-wider">Leave Quota</p>
-            <h3 className="text-xl font-bold text-[#181D27] mt-1">
-              {totalLeaveAvailable} Days
-            </h3>
-            <p className="text-[11px] text-[#2D7A58] font-medium mt-1">
-              Available this year
-            </p>
-          </div>
-          <div className="w-10 h-10 rounded-lg bg-[#EAF6ED] text-[#2D7A58] flex items-center justify-center border border-[#D1EBD9] shrink-0">
-            <CalendarCheck className="w-5 h-5" />
-          </div>
-        </div>
-
-        {/* Card 3: Monthly Attendance */}
-        <div className="bg-white p-5 rounded-xl border border-[#EAECF0] shadow-subtle flex items-center justify-between">
-          <div>
-            <p className="text-[11px] font-semibold text-[#717680] uppercase tracking-wider">Monthly Attendance</p>
+            <p className="text-[11px] font-semibold text-[#717680] uppercase tracking-wider">Attendance This Month</p>
             <h3 className="text-xl font-bold text-[#181D27] mt-1">
               {monthStats.presentCount + monthStats.lateCount} Days
             </h3>
@@ -325,26 +247,42 @@ export function EmployeeSelfServiceDashboard() {
           </div>
         </div>
 
-        {/* Card 4: Latest Net Pay */}
+        {/* Card 3: Assigned Work Shift Schedule */}
         <div className="bg-white p-5 rounded-xl border border-[#EAECF0] shadow-subtle flex items-center justify-between">
           <div>
-            <p className="text-[11px] font-semibold text-[#717680] uppercase tracking-wider">Latest Net Salary</p>
+            <p className="text-[11px] font-semibold text-[#717680] uppercase tracking-wider">Assigned Shift</p>
             <h3 className="text-xl font-bold text-[#181D27] mt-1">
-              {latestPayslip ? formatCurrency(latestPayslip.netSalary) : formatCurrency(profile?.baseSalary ? Number(profile.baseSalary) / 12 : 1400)}
+              09:00 AM - 06:00 PM
             </h3>
             <p className="text-[11px] text-[#2D7A58] font-medium mt-1">
-              {latestPayslip ? `Month ${latestPayslip.month}/${latestPayslip.year} • ${latestPayslip.status}` : 'Current Monthly Base'}
+              Standard Operations • On-Site
             </p>
           </div>
           <div className="w-10 h-10 rounded-lg bg-[#EAF6ED] text-[#2D7A58] flex items-center justify-center border border-[#D1EBD9] shrink-0">
-            <CreditCard className="w-5 h-5" />
+            <CalendarCheck className="w-5 h-5" />
+          </div>
+        </div>
+
+        {/* Card 4: Reporting Supervisor */}
+        <div className="bg-white p-5 rounded-xl border border-[#EAECF0] shadow-subtle flex items-center justify-between">
+          <div>
+            <p className="text-[11px] font-semibold text-[#717680] uppercase tracking-wider">Reporting Supervisor</p>
+            <h3 className="text-xl font-bold text-[#181D27] mt-1 truncate max-w-[170px]">
+              {profile?.manager ? `${profile.manager.firstName} ${profile.manager.lastName}` : 'Management'}
+            </h3>
+            <p className="text-[11px] text-[#535862] font-medium mt-1 truncate max-w-[170px]">
+              {profile?.manager?.designation || profile?.department?.name || 'Department Supervisor'}
+            </p>
+          </div>
+          <div className="w-10 h-10 rounded-lg bg-[#FAFBFB] text-[#535862] flex items-center justify-center border border-[#EAECF0] shrink-0">
+            <Briefcase className="w-5 h-5" />
           </div>
         </div>
       </div>
 
       {/* 3. Center Section: 2 Columns */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column (5 cols): Daily Shift Punch & Leave Progress */}
+        {/* Left Column (5 cols): Daily Shift Punch & Weekly Activity */}
         <div className="lg:col-span-5 space-y-6">
           {/* Daily Attendance Clock Station */}
           <div className="bg-white p-6 rounded-xl border border-[#EAECF0] shadow-subtle">
@@ -443,434 +381,274 @@ export function EmployeeSelfServiceDashboard() {
             </div>
           </div>
 
-          {/* Leave Quota Progress Gauges */}
+          {/* Recent 7-Day Attendance Activity Strip */}
           <div className="bg-white p-6 rounded-xl border border-[#EAECF0] shadow-subtle">
             <div className="flex items-center justify-between pb-3 border-b border-[#EAECF0]">
-              <div>
-                <h3 className="text-sm font-bold text-[#181D27]">Leave Quotas ({currentTime.getFullYear()})</h3>
-                <p className="text-[11px] text-[#717680]">Allocated days and utilized quotas</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowLeaveModal(true)}
-                className="text-xs font-semibold text-[#2D7A58] hover:text-[#256549] inline-flex items-center gap-1 cursor-pointer"
-              >
-                + Request <ChevronRight className="w-3 h-3" />
-              </button>
-            </div>
-
-            <div className="mt-4 space-y-4">
-              {leaveBalances.length === 0 ? (
-                <p className="text-xs text-slate-400 py-3 text-center">No leave balance records found.</p>
-              ) : (
-                leaveBalances.map((b) => {
-                  const used = b.usedDays || 0;
-                  const total = b.totalDays || 1;
-                  const remaining = Math.max(0, total - used);
-                  const pct = Math.min(100, Math.round((used / total) * 100));
-
-                  return (
-                    <div key={b.id} className="space-y-1.5">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-semibold text-[#181D27]">{b.leaveType?.name}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[#717680]">
-                            {used} of {total} used
-                          </span>
-                          <span className="font-semibold text-[#2D7A58] bg-[#EAF6ED] border border-[#D1EBD9] px-1.5 py-0.2 rounded text-[11px]">
-                            {remaining} left
-                          </span>
-                        </div>
-                      </div>
-                      <div className="w-full bg-[#EAECF0] h-2 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-[#2D7A58] rounded-full transition-all duration-500"
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column (7 cols): Leave Status & Compensation */}
-        <div className="lg:col-span-7 space-y-6">
-          {/* Recent Leave Inquiries */}
-          <div className="bg-white p-6 rounded-xl border border-[#EAECF0] shadow-subtle">
-            <div className="flex items-center justify-between pb-3 border-b border-[#EAECF0]">
-              <div>
-                <h3 className="text-sm font-bold text-[#181D27]">My Time-Off Requests</h3>
-                <p className="text-[11px] text-[#717680]">Track approval status from management</p>
-              </div>
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowLeaveModal(true)}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#2D7A58] hover:bg-[#256549] text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-                >
-                  <span>+ Apply Leave</span>
-                </button>
+                <div className="w-8 h-8 rounded-lg bg-[#F4F6F5] text-[#181D27] flex items-center justify-center border border-[#EAECF0]">
+                  <CalendarRange className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-[#181D27]">Recent 7-Day Activity</h3>
+                  <p className="text-[11px] text-[#717680]">Weekly check-in log summary</p>
+                </div>
               </div>
+              <Link
+                href="/attendance"
+                className="text-xs font-semibold text-[#2D7A58] hover:text-[#256549] inline-flex items-center gap-0.5"
+              >
+                Calendar <ChevronRight className="w-3 h-3" />
+              </Link>
             </div>
 
             <div className="mt-3 divide-y divide-[#EAECF0]">
-              {recentLeaves.length === 0 ? (
-                <div className="py-10 text-center text-slate-400 text-xs">
-                  <CalendarDays className="w-7 h-7 mx-auto mb-2 text-slate-300" />
-                  <p>No leave requests submitted yet.</p>
-                  <button
-                    type="button"
-                    onClick={() => setShowLeaveModal(true)}
-                    className="text-[#2D7A58] font-semibold text-xs mt-1 inline-block hover:underline cursor-pointer"
-                  >
-                    Submit your first request
-                  </button>
-                </div>
-              ) : (
-                recentLeaves.map((leave) => {
-                  const isApproved = leave.status === 'APPROVED';
-                  const isRejected = leave.status === 'REJECTED';
-                  const isPending = leave.status === 'PENDING';
+              {last7Days.map((dayDate, idx) => {
+                const dateKey = dayDate.toISOString().slice(0, 10);
+                const isToday = dayDate.toDateString() === new Date().toDateString();
+                const dayOfWeek = dayDate.getDay();
+                const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
-                  return (
-                    <div key={leave.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                      <div className="flex items-start gap-3">
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
-                          isApproved ? 'bg-[#EAF6ED] text-[#2D7A58]' : isRejected ? 'bg-rose-50 text-rose-700' : 'bg-[#FEF6EE] text-[#B93815]'
-                        }`}>
-                          <Calendar className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <p className="text-xs font-semibold text-[#181D27]">
-                            {leave.leaveType?.name || 'Leave'}{' '}
-                            <span className="text-[#717680] font-normal">&bull; {Number(leave.daysCount)} day(s)</span>
-                          </p>
-                          <p className="text-[11px] text-[#535862] mt-0.5">
-                            {formatDate(leave.startDate)} to {formatDate(leave.endDate)}
-                          </p>
-                          {leave.reason && (
-                            <p className="text-[11px] text-[#717680] italic mt-0.5 truncate max-w-sm">
-                              &ldquo;{leave.reason}&rdquo;
-                            </p>
-                          )}
-                          {leave.reviewComment && (
-                            <p className="text-[11px] text-slate-600 mt-1 bg-slate-50 p-1.5 rounded border border-slate-200">
-                              <span className="font-semibold">Manager note:</span> {leave.reviewComment}
-                            </p>
-                          )}
-                        </div>
+                // Match in thisWeekAttendance
+                const record = thisWeekAttendance.find((r) => {
+                  const rDate = new Date(r.date).toISOString().slice(0, 10);
+                  return rDate === dateKey;
+                }) || (isToday ? todayRecord : null);
+
+                return (
+                  <div key={idx} className="py-2.5 flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2.5">
+                      <div className={`w-8 h-8 rounded-lg flex flex-col items-center justify-center text-[10px] font-semibold border ${
+                        isToday 
+                          ? 'bg-[#EAF6ED] text-[#2D7A58] border-[#D1EBD9]' 
+                          : 'bg-[#FAFBFB] text-[#535862] border-[#EAECF0]'
+                      }`}>
+                        <span>{dayDate.toLocaleDateString('en-US', { weekday: 'short' })}</span>
+                        <span className="font-bold leading-none">{dayDate.getDate()}</span>
                       </div>
-
-                      <div className="sm:text-right shrink-0">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
-                          isApproved
-                            ? 'bg-[#EAF6ED] text-[#2D7A58] border-[#D1EBD9]'
-                            : isRejected
-                            ? 'bg-rose-50 text-rose-700 border-rose-200'
-                            : 'bg-[#FEF6EE] text-[#B93815] border-[#F9DBAF]'
-                        }`}>
-                          {leave.status}
+                      <div>
+                        <div className="font-semibold text-[#181D27] flex items-center gap-1.5">
+                          <span>{dayDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                          {isToday && (
+                            <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded font-medium">
+                              Today
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[11px] text-[#717680]">
+                          {record?.clockIn 
+                            ? `In: ${new Date(record.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}${record.clockOut ? ` • Out: ${new Date(record.clockOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ' (In progress)'}`
+                            : isWeekend 
+                            ? 'Weekend Off' 
+                            : isToday 
+                            ? 'Check-in pending' 
+                            : 'Off / Not recorded'}
                         </span>
-                        <p className="text-[10px] text-[#717680] mt-1">Submitted {formatDate(leave.createdAt)}</p>
                       </div>
                     </div>
-                  );
-                })
-              )}
+
+                    <div>
+                      {record?.status === 'PRESENT' ? (
+                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#EAF6ED] text-[#2D7A58] border border-[#D1EBD9]">
+                          Present
+                        </span>
+                      ) : record?.status === 'LATE' ? (
+                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#FEF6EE] text-[#B93815] border border-[#F9DBAF]">
+                          Late
+                        </span>
+                      ) : record?.status === 'HALF_DAY' ? (
+                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                          Half Day
+                        </span>
+                      ) : isWeekend ? (
+                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-500 border border-slate-200">
+                          Rest Day
+                        </span>
+                      ) : isToday && !isClockedIn ? (
+                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-50 text-slate-400 border border-slate-200">
+                          Pending
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-50 text-slate-400 border border-slate-200">
+                          Off
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column (7 cols): Official Employment Profile & Quick Services */}
+        <div className="lg:col-span-7 space-y-6">
+          {/* Official Staff Profile & Corporate Details */}
+          <div className="bg-white p-6 rounded-xl border border-[#EAECF0] shadow-subtle">
+            <div className="flex items-center justify-between pb-3 border-b border-[#EAECF0]">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-[#EAF6ED] text-[#2D7A58] flex items-center justify-center border border-[#D1EBD9]">
+                  <Building2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-[#181D27]">Official Employment Details</h3>
+                  <p className="text-[11px] text-[#717680]">Verified corporate profile and organization record</p>
+                </div>
+              </div>
+              <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-[#EAF6ED] text-[#2D7A58] border border-[#D1EBD9]">
+                Verified Record
+              </span>
             </div>
 
-            <div className="pt-3 border-t border-[#EAECF0] flex items-center justify-between text-xs">
-              <span className="text-[#717680] text-[11px]">View full leave balance and requests</span>
-              <Link
-                href="/leaves"
-                className="text-xs font-semibold text-[#2D7A58] hover:text-[#256549] inline-flex items-center gap-1"
-              >
-                All Inquiries <ChevronRight className="w-3 h-3" />
-              </Link>
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="p-3.5 rounded-xl border border-[#EAECF0] bg-[#FAFBFB]">
+                <div className="flex items-center gap-2 text-slate-400 mb-1">
+                  <User className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="text-[11px] font-medium text-[#717680]">Full Legal Name</span>
+                </div>
+                <p className="text-[13px] font-semibold text-[#181D27]">
+                  {profile?.firstName} {profile?.lastName}
+                </p>
+                <p className="text-[11px] text-[#717680] mt-0.5 font-mono">
+                  Staff ID #{profile?.employeeCode}
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-xl border border-[#EAECF0] bg-[#FAFBFB]">
+                <div className="flex items-center gap-2 text-slate-400 mb-1">
+                  <Briefcase className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="text-[11px] font-medium text-[#717680]">Designation & Title</span>
+                </div>
+                <p className="text-[13px] font-semibold text-[#181D27]">
+                  {profile?.designation || 'Staff Member'}
+                </p>
+                <p className="text-[11px] text-[#2D7A58] mt-0.5 font-medium">
+                  {profile?.department?.name || 'General Operations'}
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-xl border border-[#EAECF0] bg-[#FAFBFB]">
+                <div className="flex items-center gap-2 text-slate-400 mb-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="text-[11px] font-medium text-[#717680]">Direct Reporting Officer</span>
+                </div>
+                <p className="text-[13px] font-semibold text-[#181D27]">
+                  {profile?.manager ? `${profile.manager.firstName} ${profile.manager.lastName}` : 'General Management'}
+                </p>
+                <p className="text-[11px] text-[#717680] mt-0.5">
+                  {profile?.manager?.designation || 'Supervisor'}
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-xl border border-[#EAECF0] bg-[#FAFBFB]">
+                <div className="flex items-center gap-2 text-slate-400 mb-1">
+                  <Mail className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="text-[11px] font-medium text-[#717680]">Corporate Email Address</span>
+                </div>
+                <p className="text-[13px] font-semibold text-[#181D27] truncate">
+                  {profile?.user?.email || 'N/A'}
+                </p>
+                <p className="text-[11px] text-[#717680] mt-0.5">
+                  Role: {profile?.user?.role || 'EMPLOYEE'}
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-xl border border-[#EAECF0] bg-[#FAFBFB]">
+                <div className="flex items-center gap-2 text-slate-400 mb-1">
+                  <Phone className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="text-[11px] font-medium text-[#717680]">Contact Mobile</span>
+                </div>
+                <p className="text-[13px] font-semibold text-[#181D27] font-mono">
+                  {profile?.phone || 'Not specified'}
+                </p>
+                <p className="text-[11px] text-[#717680] mt-0.5">
+                  Primary contact number
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-xl border border-[#EAECF0] bg-[#FAFBFB]">
+                <div className="flex items-center gap-2 text-slate-400 mb-1">
+                  <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="text-[11px] font-medium text-[#717680]">Date of Joining</span>
+                </div>
+                <p className="text-[13px] font-semibold text-[#181D27]">
+                  {profile?.dateOfJoining ? formatDate(profile.dateOfJoining) : 'Active Contract'}
+                </p>
+                <p className="text-[11px] text-emerald-700 mt-0.5 font-medium">
+                  Le Paradise Resort Staff
+                </p>
+              </div>
             </div>
           </div>
 
-          {/* Latest Compensation & Payslip Snapshot */}
+          {/* Quick Access to Specialized Workspaces */}
           <div className="bg-white p-6 rounded-xl border border-[#EAECF0] shadow-subtle">
             <div className="flex items-center justify-between pb-3 border-b border-[#EAECF0]">
-              <div>
-                <h3 className="text-sm font-bold text-[#181D27]">Compensation & Latest Payslip</h3>
-                <p className="text-[11px] text-[#717680]">Verified monthly payroll slip and net earnings</p>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-[#FAFBFB] text-[#181D27] flex items-center justify-center border border-[#EAECF0]">
+                  <Sparkles className="w-4 h-4 text-[#2D7A58]" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-[#181D27]">Self-Service Workspaces</h3>
+                  <p className="text-[11px] text-[#717680]">Dedicated portals for attendance, leave management, and wages</p>
+                </div>
               </div>
-              <Link
-                href="/payroll"
-                className="text-xs font-semibold text-[#2D7A58] hover:text-[#256549] inline-flex items-center gap-1"
-              >
-                All Payslips <ChevronRight className="w-3 h-3" />
-              </Link>
             </div>
 
-            {latestPayslip ? (
-              <div className="mt-4 p-4 rounded-xl border border-[#EAECF0] bg-[#FAFBFB]">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#EAECF0]">
-                  <div>
-                    <span className="text-[11px] text-[#717680] uppercase tracking-wider font-semibold">Pay Period</span>
-                    <h4 className="text-base font-bold text-[#181D27] mt-0.5">
-                      {new Date(latestPayslip.year, latestPayslip.month - 1).toLocaleString('default', { month: 'long', year: 'numeric' })}
-                    </h4>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
-                      latestPayslip.status === 'PAID'
-                        ? 'bg-[#EAF6ED] text-[#2D7A58] border-[#D1EBD9]'
-                        : 'bg-slate-100 text-slate-700 border-slate-200'
-                    }`}>
-                      {latestPayslip.status}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setShowPayslipModal(true)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#EAECF0] hover:border-slate-300 rounded-lg text-xs font-semibold text-[#344054] shadow-subtle transition-colors cursor-pointer"
-                    >
-                      <Printer className="w-3.5 h-3.5 text-slate-400" />
-                      <span>View Breakdown</span>
-                    </button>
-                  </div>
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Tile 1: Attendance Logs */}
+              <Link
+                href="/attendance"
+                className="group p-4 rounded-xl border border-[#EAECF0] bg-[#FAFBFB] hover:bg-white hover:border-[#2D7A58] hover:shadow-subtle transition-all block cursor-pointer"
+              >
+                <div className="w-9 h-9 rounded-lg bg-[#EAF6ED] text-[#2D7A58] flex items-center justify-center border border-[#D1EBD9] group-hover:scale-105 transition-transform">
+                  <Clock className="w-4 h-4" />
                 </div>
+                <h4 className="text-[13px] font-bold text-[#181D27] mt-3 group-hover:text-[#2D7A58] transition-colors flex items-center justify-between">
+                  <span>Attendance Logs</span>
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+                </h4>
+                <p className="text-[11px] text-[#717680] mt-1 leading-relaxed">
+                  Monthly shift calendar, working hours, and punctuality logs.
+                </p>
+              </Link>
 
-                <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                  <div>
-                    <span className="text-[#717680] text-[11px] block">Basic Pay</span>
-                    <span className="font-semibold text-[#181D27] text-[13px]">{formatCurrency(latestPayslip.basicSalary)}</span>
-                  </div>
-                  <div>
-                    <span className="text-[#717680] text-[11px] block">Allowances</span>
-                    <span className="font-semibold text-emerald-700 text-[13px]">+{formatCurrency(latestPayslip.allowances)}</span>
-                  </div>
-                  <div>
-                    <span className="text-[#717680] text-[11px] block">Deductions</span>
-                    <span className="font-semibold text-rose-700 text-[13px]">-{formatCurrency(latestPayslip.deductions)}</span>
-                  </div>
-                  <div>
-                    <span className="text-[#717680] text-[11px] block">Net Take-Home</span>
-                    <span className="font-bold text-[#2D7A58] text-[14px]">{formatCurrency(latestPayslip.netSalary)}</span>
-                  </div>
+              {/* Tile 2: Leave Inquiries */}
+              <Link
+                href="/leaves"
+                className="group p-4 rounded-xl border border-[#EAECF0] bg-[#FAFBFB] hover:bg-white hover:border-[#2D7A58] hover:shadow-subtle transition-all block cursor-pointer"
+              >
+                <div className="w-9 h-9 rounded-lg bg-[#EAF6ED] text-[#2D7A58] flex items-center justify-center border border-[#D1EBD9] group-hover:scale-105 transition-transform">
+                  <CalendarDays className="w-4 h-4" />
                 </div>
-              </div>
-            ) : (
-              <div className="mt-4 p-4 rounded-xl border border-[#EAECF0] bg-[#FAFBFB] text-center text-xs text-[#717680]">
-                <CreditCard className="w-6 h-6 mx-auto mb-1 text-slate-300" />
-                <p>No generated payslips yet for this period.</p>
-                <p className="text-[11px] text-slate-400 mt-0.5">Your monthly base wage is {formatCurrency(profile?.baseSalary ? Number(profile.baseSalary) / 12 : 1400)}.</p>
-              </div>
-            )}
+                <h4 className="text-[13px] font-bold text-[#181D27] mt-3 group-hover:text-[#2D7A58] transition-colors flex items-center justify-between">
+                  <span>Leave Inquiries</span>
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+                </h4>
+                <p className="text-[11px] text-[#717680] mt-1 leading-relaxed">
+                  Apply for time off, view annual quotas, and track approvals.
+                </p>
+              </Link>
+
+              {/* Tile 3: My Payslips */}
+              <Link
+                href="/payroll"
+                className="group p-4 rounded-xl border border-[#EAECF0] bg-[#FAFBFB] hover:bg-white hover:border-[#2D7A58] hover:shadow-subtle transition-all block cursor-pointer"
+              >
+                <div className="w-9 h-9 rounded-lg bg-[#EAF6ED] text-[#2D7A58] flex items-center justify-center border border-[#D1EBD9] group-hover:scale-105 transition-transform">
+                  <CreditCard className="w-4 h-4" />
+                </div>
+                <h4 className="text-[13px] font-bold text-[#181D27] mt-3 group-hover:text-[#2D7A58] transition-colors flex items-center justify-between">
+                  <span>My Payslips</span>
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+                </h4>
+                <p className="text-[11px] text-[#717680] mt-1 leading-relaxed">
+                  Verified salary statements, monthly breakdowns, and PDF exports.
+                </p>
+              </Link>
+            </div>
           </div>
         </div>
       </div>
-
-      {/* 4. Request Leave In-Dashboard Modal */}
-      {showLeaveModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-[#EAECF0] max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-4 border-b border-[#EAECF0]">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-[#EAF6ED] text-[#2D7A58] flex items-center justify-center shrink-0">
-                  <CalendarDays className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-[#181D27]">Request Time Off</h3>
-                  <p className="text-[11px] text-[#717680]">Submit a leave inquiry for manager review</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowLeaveModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {leaveError && (
-              <div className="mt-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs font-medium">
-                {leaveError}
-              </div>
-            )}
-
-            <form onSubmit={handleApplyLeave} className="mt-5 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-[#344054] mb-1">Leave Category *</label>
-                <select
-                  required
-                  value={leaveForm.leaveTypeId}
-                  onChange={(e) => setLeaveForm({ ...leaveForm, leaveTypeId: e.target.value })}
-                  className="w-full px-3 py-2 bg-white border border-[#EAECF0] rounded-lg text-[13px] focus:ring-1 focus:ring-[#2D7A58] outline-none"
-                >
-                  {data?.leaveTypes?.map((lt: any) => (
-                    <option key={lt.id} value={lt.id}>
-                      {lt.name} ({lt.defaultDays} default days/yr)
-                    </option>
-                  ))}
-                </select>
-                {selectedBalance && (
-                  <p className="text-[11px] text-[#2D7A58] mt-1 font-medium">
-                    You have {Math.max(0, selectedBalance.totalDays - selectedBalance.usedDays)} of {selectedBalance.totalDays} days available for this category.
-                  </p>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-[#344054] mb-1">Start Date *</label>
-                  <input
-                    type="date"
-                    required
-                    value={leaveForm.startDate}
-                    onChange={(e) => setLeaveForm({ ...leaveForm, startDate: e.target.value })}
-                    className="w-full px-3 py-2 bg-white border border-[#EAECF0] rounded-lg text-[13px] focus:ring-1 focus:ring-[#2D7A58] outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-[#344054] mb-1">End Date *</label>
-                  <input
-                    type="date"
-                    required
-                    value={leaveForm.endDate}
-                    onChange={(e) => setLeaveForm({ ...leaveForm, endDate: e.target.value })}
-                    className="w-full px-3 py-2 bg-white border border-[#EAECF0] rounded-lg text-[13px] focus:ring-1 focus:ring-[#2D7A58] outline-none"
-                  />
-                </div>
-              </div>
-
-              {formDaysCount > 0 && (
-                <div className="p-2.5 rounded-lg bg-[#FAFBFB] border border-[#EAECF0] text-xs flex items-center justify-between text-[#535862]">
-                  <span>Calculated Time-Off Duration:</span>
-                  <span className="font-bold text-[#181D27]">{formDaysCount} day{formDaysCount > 1 ? 's' : ''}</span>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-xs font-semibold text-[#344054] mb-1">Reason / Purpose *</label>
-                <textarea
-                  required
-                  rows={3}
-                  placeholder="State the reason for this time-off request..."
-                  value={leaveForm.reason}
-                  onChange={(e) => setLeaveForm({ ...leaveForm, reason: e.target.value })}
-                  className="w-full px-3 py-2 bg-white border border-[#EAECF0] rounded-lg text-[13px] focus:ring-1 focus:ring-[#2D7A58] outline-none placeholder:text-slate-400"
-                />
-              </div>
-
-              <div className="pt-3 border-t border-[#EAECF0] flex items-center justify-end gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setShowLeaveModal(false)}
-                  className="px-4 py-2 border border-[#EAECF0] rounded-lg text-[13px] font-semibold text-[#344054] hover:bg-slate-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={leaveSubmitting}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#2D7A58] hover:bg-[#256549] text-white rounded-lg text-[13px] font-semibold shadow-sm transition-all disabled:opacity-50 cursor-pointer"
-                >
-                  {leaveSubmitting ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>Submitting...</span>
-                    </>
-                  ) : (
-                    <span>Submit Leave Request</span>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* 5. Payslip Detail Modal */}
-      {showPayslipModal && latestPayslip && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 sm:p-7 shadow-2xl border border-[#EAECF0] max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-4 border-b border-[#EAECF0]">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-[#EAF6ED] text-[#2D7A58] flex items-center justify-center shrink-0">
-                  <CreditCard className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-[#181D27]">Salary Payslip Statement</h3>
-                  <p className="text-[11px] text-[#717680]">
-                    {new Date(latestPayslip.year, latestPayslip.month - 1).toLocaleString('default', { month: 'long', year: 'numeric' })}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowPayslipModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="mt-4 p-4 rounded-xl border border-[#EAECF0] bg-[#FAFBFB] space-y-3">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-[#717680]">Employee Name:</span>
-                <span className="font-semibold text-[#181D27]">{profile?.firstName} {profile?.lastName}</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-[#717680]">Staff Code:</span>
-                <span className="font-mono text-[#181D27]">#{profile?.employeeCode}</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-[#717680]">Designation & Dept:</span>
-                <span className="text-[#181D27]">{profile?.designation} ({profile?.department?.name})</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-[#717680]">Status:</span>
-                <span className="font-semibold text-[#2D7A58] bg-[#EAF6ED] border border-[#D1EBD9] px-2 py-0.5 rounded text-[11px]">
-                  {latestPayslip.status}
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-4 space-y-2 text-xs divide-y divide-[#EAECF0]">
-              <div className="flex justify-between py-1.5">
-                <span className="text-[#535862]">Basic Monthly Salary</span>
-                <span className="font-semibold text-[#181D27]">{formatCurrency(latestPayslip.basicSalary)}</span>
-              </div>
-              <div className="flex justify-between py-1.5">
-                <span className="text-[#535862]">Allowances & Bonuses</span>
-                <span className="font-semibold text-emerald-700">+{formatCurrency(latestPayslip.allowances)}</span>
-              </div>
-              <div className="flex justify-between py-1.5">
-                <span className="text-[#535862]">Statutory Deductions & Taxes</span>
-                <span className="font-semibold text-rose-700">-{formatCurrency(latestPayslip.deductions)}</span>
-              </div>
-              <div className="flex justify-between py-2.5 font-bold text-sm bg-[#FAFBFB] px-3 rounded-lg border border-[#EAECF0] mt-2">
-                <span className="text-[#181D27]">Net Disbursed Take-Home</span>
-                <span className="text-[#2D7A58] font-mono text-base">{formatCurrency(latestPayslip.netSalary)}</span>
-              </div>
-            </div>
-
-            <div className="mt-6 pt-3 border-t border-[#EAECF0] flex items-center justify-end gap-2.5">
-              <button
-                type="button"
-                onClick={() => setShowPayslipModal(false)}
-                className="px-4 py-2 border border-[#EAECF0] rounded-lg text-[13px] font-semibold text-[#344054] hover:bg-slate-50 transition-colors"
-              >
-                Close
-              </button>
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#181D27] hover:bg-black text-white rounded-lg text-[13px] font-semibold shadow-sm transition-all cursor-pointer"
-              >
-                <Printer className="w-3.5 h-3.5" />
-                <span>Print Statement</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
-
