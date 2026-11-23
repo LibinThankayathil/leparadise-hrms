@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getSession, hashPassword } from '@/lib/auth';
+import { isCurrentManager } from '@/lib/employee-access';
 import { Role, EmploymentStatus } from '@prisma/client';
 import { z } from 'zod';
 
@@ -152,4 +153,112 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Failed to create employee' }, { status: 500 });
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const session = await getSession();
+    if (!session || !(await isCurrentManager(session))) {
+      return NextResponse.json({ error: 'Forbidden: Manager access required' }, { status: 403 });
+    }
+
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
+    const rawIds: string[] = Array.isArray(body?.ids)
+      ? body.ids
+      : body?.id
+      ? [body.id]
+      : [];
+
+    const ids = rawIds.filter((id) => typeof id === 'string' && id.trim().length > 0);
+
+    if (ids.length === 0) {
+      return NextResponse.json({ error: 'No valid staff IDs provided for deletion' }, { status: 400 });
+    }
+
+    // Fetch the employees to be deleted
+    const employeesToDelete = await prisma.employee.findMany({
+      where: { id: { in: ids } },
+      select: {
+        id: true,
+        userId: true,
+        firstName: true,
+        lastName: true,
+      },
+    });
+
+    if (employeesToDelete.length === 0) {
+      return NextResponse.json({ error: 'No matching staff members found' }, { status: 404 });
+    }
+
+    // Safety check: Manager cannot delete their own account
+    const includesSelf = employeesToDelete.some(
+      (emp) => emp.id === session.employeeId || emp.userId === session.userId
+    );
+    if (includesSelf) {
+      return NextResponse.json(
+        { error: 'Cannot delete your own manager account. Please deselect yourself and try again.' },
+        { status: 400 }
+      );
+    }
+
+    const validIds = employeesToDelete.map((emp) => emp.id);
+    const validUserIds = employeesToDelete
+      .map((emp) => emp.userId)
+      .filter((uid): uid is string => Boolean(uid));
+
+    const count = await prisma.$transaction(async (tx) => {
+      // 1. Unlink subordinates
+      await tx.employee.updateMany({
+        where: { managerId: { in: validIds } },
+        data: { managerId: null },
+      });
+
+      // 2. Delete all related records
+      await tx.attendanceRecord.deleteMany({
+        where: { employeeId: { in: validIds } },
+      });
+
+      await tx.leaveRequest.deleteMany({
+        where: { employeeId: { in: validIds } },
+      });
+
+      await tx.leaveBalance.deleteMany({
+        where: { employeeId: { in: validIds } },
+      });
+
+      await tx.payslip.deleteMany({
+        where: { employeeId: { in: validIds } },
+      });
+
+      // 3. Delete employee records
+      const deleted = await tx.employee.deleteMany({
+        where: { id: { in: validIds } },
+      });
+
+      // 4. Delete associated user accounts
+      if (validUserIds.length > 0) {
+        await tx.user.deleteMany({
+          where: { id: { in: validUserIds } },
+        });
+      }
+      return deleted.count;
+    });
+
+    return NextResponse.json({
+      success: true,
+      count,
+      message: count === 0
+        ? 'No staff members remained to delete'
+        : `Successfully deleted ${count} staff member${count > 1 ? 's' : ''}`,
+    });
+  } catch (error) {
+    console.error('Batch delete employees error:', error);
+    return NextResponse.json({ error: 'Failed to delete staff members' }, { status: 500 });
+  }
+}
+
 
