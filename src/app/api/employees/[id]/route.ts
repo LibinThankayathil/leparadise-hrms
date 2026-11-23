@@ -43,12 +43,34 @@ export async function GET(
     }
 
     const { id } = params;
+    const currentYear = new Date().getFullYear();
+
     const employee = await prisma.employee.findUnique({
       where: { id },
       include: {
-        user: { select: { email: true, role: true, isActive: true } },
-        department: { select: { id: true, name: true } },
-        manager: { select: { id: true, firstName: true, lastName: true } },
+        user: { select: { id: true, email: true, role: true, isActive: true, createdAt: true } },
+        department: { select: { id: true, name: true, description: true } },
+        manager: { select: { id: true, firstName: true, lastName: true, designation: true, employeeCode: true } },
+        subordinates: {
+          select: { id: true, firstName: true, lastName: true, designation: true, employeeCode: true, status: true },
+        },
+        leaveBalances: {
+          where: { year: currentYear },
+          include: { leaveType: true },
+        },
+        leaveRequests: {
+          take: 15,
+          orderBy: { createdAt: 'desc' },
+          include: { leaveType: true },
+        },
+        payslips: {
+          take: 12,
+          orderBy: [{ year: 'desc' }, { month: 'desc' }],
+        },
+        attendanceRecords: {
+          take: 30,
+          orderBy: { date: 'desc' },
+        },
       },
     });
 
@@ -56,7 +78,55 @@ export async function GET(
       return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ employee });
+    // Compute tenure
+    const joinDate = new Date(employee.dateOfJoining);
+    const now = new Date();
+    const diffMonths = Math.max(
+      0,
+      (now.getFullYear() - joinDate.getFullYear()) * 12 + (now.getMonth() - joinDate.getMonth())
+    );
+    const tenureYears = Math.floor(diffMonths / 12);
+    const tenureRemainingMonths = diffMonths % 12;
+    const tenureString =
+      tenureYears > 0
+        ? `${tenureYears} yr${tenureYears > 1 ? 's' : ''} ${tenureRemainingMonths} mo${tenureRemainingMonths !== 1 ? 's' : ''}`
+        : `${tenureRemainingMonths} month${tenureRemainingMonths !== 1 ? 's' : ''}`;
+
+    // Compute attendance statistics
+    const attendanceLogs = employee.attendanceRecords;
+    let presentCount = 0;
+    let lateCount = 0;
+    let halfDayCount = 0;
+    let absentCount = 0;
+
+    attendanceLogs.forEach((rec) => {
+      if (rec.status === 'PRESENT') presentCount++;
+      else if (rec.status === 'LATE') lateCount++;
+      else if (rec.status === 'HALF_DAY') halfDayCount++;
+      else if (rec.status === 'ABSENT') absentCount++;
+    });
+
+    const totalLogs = attendanceLogs.length;
+    const punctualityRate = totalLogs > 0 ? Math.round((presentCount / totalLogs) * 100) : 100;
+    const attendanceHealthRate =
+      totalLogs > 0 ? Math.round(((presentCount + lateCount + halfDayCount) / totalLogs) * 100) : 100;
+
+    return NextResponse.json({
+      employee,
+      stats: {
+        tenureString,
+        tenureMonths: diffMonths,
+        attendance: {
+          totalLogs,
+          presentCount,
+          lateCount,
+          halfDayCount,
+          absentCount,
+          punctualityRate,
+          attendanceHealthRate,
+        },
+      },
+    });
   } catch (error) {
     console.error('Fetch employee error:', error);
     return NextResponse.json({ error: 'Failed to fetch employee' }, { status: 500 });

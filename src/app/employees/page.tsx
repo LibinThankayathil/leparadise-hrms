@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import Link from 'next/link';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { InlineLoader } from '@/components/LoadingScreen';
 import { useAuth } from '@/context/AuthContext';
@@ -15,7 +16,8 @@ import {
   AlertTriangle,
   CheckCircle2,
   Loader2,
-  Pencil
+  Pencil,
+  Eye
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 
@@ -388,8 +390,8 @@ export default function EmployeesPage() {
     return null;
   }
 
-  // Calculate total table columns
-  const hasActions = canEditStaff || canDeleteStaff;
+  // Calculate total table columns (Actions column is always visible to allow viewing full profile)
+  const hasActions = true;
   let totalColumns = 6; // Staff ID, Name, Dept, Designation, Email, Mobile
   if (canDeleteStaff) totalColumns += 1; // Checkbox
   if (canViewSalary) totalColumns += 1; // Salary
@@ -600,16 +602,19 @@ export default function EmployeesPage() {
                           #{emp.employeeCode?.replace(/\D/g, '') || emp.employeeCode || '102112'}
                         </td>
                         <td className="py-3 px-4 font-semibold text-[#181D27]">
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-7 h-7 rounded-full bg-slate-200 overflow-hidden shrink-0">
+                          <Link
+                            href={`/employees/${emp.id}`}
+                            className="flex items-center gap-2.5 group hover:text-[#2D7A58] transition-colors"
+                          >
+                            <div className="w-7 h-7 rounded-full bg-slate-200 overflow-hidden shrink-0 group-hover:ring-2 group-hover:ring-[#2D7A58] transition-all">
                               <img
                                 src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${emp.firstName}_${emp.lastName}`}
                                 alt=""
                                 className="w-full h-full object-cover"
                               />
                             </div>
-                            <span className="truncate">{emp.firstName} {emp.lastName}</span>
-                          </div>
+                            <span className="truncate group-hover:underline underline-offset-2">{emp.firstName} {emp.lastName}</span>
+                          </Link>
                         </td>
                         <td className="py-3 px-4 text-[#535862]">
                           {emp.department?.name || 'General Operations'}
@@ -647,34 +652,43 @@ export default function EmployeesPage() {
                         {/* Actions column */}
                         {hasActions && (
                           <td className="py-3 px-4 text-right">
-                            {isSelf ? (
-                              <span className="text-[11px] font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded">
-                                You
-                              </span>
-                            ) : (
-                              <div className="inline-flex items-center gap-0.5">
-                                {canEditStaff && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenEdit(emp)}
-                                    title="Edit staff member"
-                                    className="inline-flex items-center justify-center p-1.5 text-slate-400 hover:text-[#2D7A58] hover:bg-[#EAF6ED] rounded-lg transition-colors cursor-pointer"
-                                  >
-                                    <Pencil className="w-4 h-4" />
-                                  </button>
-                                )}
-                                {canDeleteStaff && (
-                                  <button
-                                    type="button"
-                                    onClick={(event) => handleInitiateSingleDelete(emp, event.currentTarget)}
-                                    title="Delete staff member"
-                                    className="inline-flex items-center justify-center p-1.5 text-slate-400 hover:text-[#D92D20] hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                )}
-                              </div>
-                            )}
+                            <div className="inline-flex items-center gap-0.5">
+                              <Link
+                                href={`/employees/${emp.id}`}
+                                title="View staff profile & records"
+                                className="inline-flex items-center justify-center p-1.5 text-slate-400 hover:text-[#2D7A58] hover:bg-[#EAF6ED] rounded-lg transition-colors cursor-pointer"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </Link>
+                              {isSelf ? (
+                                <span className="text-[11px] font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded ml-1">
+                                  You
+                                </span>
+                              ) : (
+                                <>
+                                  {canEditStaff && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenEdit(emp)}
+                                      title="Edit staff member"
+                                      className="inline-flex items-center justify-center p-1.5 text-slate-400 hover:text-[#2D7A58] hover:bg-[#EAF6ED] rounded-lg transition-colors cursor-pointer"
+                                    >
+                                      <Pencil className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                  {canDeleteStaff && (
+                                    <button
+                                      type="button"
+                                      onClick={(event) => handleInitiateSingleDelete(emp, event.currentTarget)}
+                                      title="Delete staff member"
+                                      className="inline-flex items-center justify-center p-1.5 text-slate-400 hover:text-[#D92D20] hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                </>
+                              )}
+                            </div>
                           </td>
                         )}
                       </tr>
