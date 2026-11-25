@@ -153,7 +153,7 @@ export default function LeavesPage() {
             Active Requests ({requests.length})
           </span>
 
-          {isStaff && (
+          {Boolean(user?.employee) && (
             <button
               type="button"
               onClick={() => setShowModal(true)}

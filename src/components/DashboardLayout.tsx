@@ -1,8 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Sidebar } from './Sidebar';
-import { MobileBottomNav } from './MobileBottomNav';
 import { LoadingScreen } from './LoadingScreen';
 import { useAuth } from '@/context/AuthContext';
 import { Menu } from 'lucide-react';
@@ -16,6 +15,12 @@ interface DashboardLayoutProps {
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const { user, loading } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    const handleOpenSidebar = () => setSidebarOpen(true);
+    window.addEventListener('open-mobile-sidebar', handleOpenSidebar);
+    return () => window.removeEventListener('open-mobile-sidebar', handleOpenSidebar);
+  }, []);
 
   // Only show the animated emblem loader on initial cold boot if user is not yet known
   if (loading && !user) {
@@ -60,9 +65,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           {children}
         </main>
       </div>
-
-      {/* Floating Bottom Navigation Pill (Mobile only) */}
-      <MobileBottomNav user={user} onOpenMenu={() => setSidebarOpen(true)} />
     </div>
   );
 }

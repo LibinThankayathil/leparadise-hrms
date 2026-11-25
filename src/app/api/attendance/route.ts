@@ -33,6 +33,7 @@ export async function GET(request: Request) {
       targetEmployeeId = employeeIdParam;
     }
 
+    let hasValidDateFilter = false;
     if (month && year) {
       const m = parseInt(month, 10);
       const y = parseInt(year, 10);
@@ -45,6 +46,7 @@ export async function GET(request: Request) {
     } else if (dateStr) {
       const parts = dateStr.split('-').map(Number);
       if (parts.length === 3 && parts.every((n) => !Number.isNaN(n))) {
+        hasValidDateFilter = true;
         const [y, m, d] = parts;
         const startOfDay = new Date(y, m - 1, d, 0, 0, 0, 0);
         const endOfDay = new Date(y, m - 1, d, 23, 59, 59, 999);
@@ -69,7 +71,7 @@ export async function GET(request: Request) {
         },
       },
       orderBy: dateStr ? [{ clockIn: 'asc' }, { employee: { firstName: 'asc' } }] : { date: 'asc' },
-      ...(month && year ? {} : { take: 100 }),
+      ...((month && year) || hasValidDateFilter ? {} : { take: 100 }),
     });
 
     // Check today's record for logged-in user

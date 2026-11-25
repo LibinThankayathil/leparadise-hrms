@@ -10,17 +10,25 @@ import {
   Users,
   Menu,
 } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 import { cn } from '@/lib/utils';
 
 interface MobileBottomNavProps {
   user?: {
     role?: string;
   } | null;
-  onOpenMenu: () => void;
+  onOpenMenu?: () => void;
 }
 
-export function MobileBottomNav({ user, onOpenMenu }: MobileBottomNavProps) {
+export function MobileBottomNav({ user: userProp, onOpenMenu }: MobileBottomNavProps = {}) {
   const pathname = usePathname();
+  const { user: authUser } = useAuth();
+  const user = userProp ?? authUser;
+
+  if (!user || pathname === '/login' || pathname === '/') {
+    return null;
+  }
+
   const isStaff = user?.role === 'EMPLOYEE';
 
   const navItems = isStaff
@@ -47,7 +55,7 @@ export function MobileBottomNav({ user, onOpenMenu }: MobileBottomNavProps) {
   return (
     <nav
       aria-label="Mobile bottom navigation"
-      className="md:hidden fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 z-40 w-[calc(100%-2rem)] max-w-md"
+      className="md:hidden fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 z-30 w-[calc(100%-2rem)] max-w-md"
     >
       <div className="flex items-center justify-around gap-1 px-2 py-1.5 rounded-full bg-white/65 backdrop-blur-xl backdrop-saturate-150 border border-white/80 ring-1 ring-slate-900/5 shadow-[0_8px_32px_rgba(15,23,42,0.12)]">
         {navItems.map((item) => {
@@ -76,7 +84,13 @@ export function MobileBottomNav({ user, onOpenMenu }: MobileBottomNavProps) {
         {!isStaff && (
           <button
             type="button"
-            onClick={onOpenMenu}
+            onClick={() => {
+              if (onOpenMenu) {
+                onOpenMenu();
+              } else {
+                window.dispatchEvent(new CustomEvent('open-mobile-sidebar'));
+              }
+            }}
             className="flex flex-col items-center justify-center flex-1 py-1.5 px-2 rounded-full transition-all min-h-[44px] min-w-0 text-[#414651] hover:text-[#181D27] hover:bg-slate-900/5 cursor-pointer"
             aria-label="Open more navigation options"
           >

@@ -27,6 +27,15 @@ function toLocalDateInputValue(d: Date) {
   return `${y}-${m}-${day}`;
 }
 
+function formatLocalDate(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
 export default function AttendancePage() {
   const { user } = useAuth();
   const isStaff = user?.role === 'EMPLOYEE';
@@ -348,8 +357,8 @@ export default function AttendancePage() {
               <div className="flex items-center gap-2 text-xs text-[#535862] font-medium self-end md:self-auto">
                 <span>
                   {selectedDate === todayStr
-                    ? `Today (${formatDate(selectedDate)})`
-                    : formatDate(selectedDate)}
+                    ? `Today (${formatLocalDate(selectedDate)})`
+                    : formatLocalDate(selectedDate)}
                 </span>
                 {attendance && (
                   <span className="px-2.5 py-1 rounded-full bg-[#FAFBFB] border border-[#EAECF0] text-[#181D27] font-semibold">
@@ -444,7 +453,7 @@ export default function AttendancePage() {
         {/* Main Content Area */}
         {selectedResult && 'error' in selectedResult ? (
           <div className="py-12 text-center border border-[#EAECF0] rounded-xl bg-white">
-            <p role="alert">Could not load attendance for {isStaff ? `${monthNames[selectedMonth - 1]} ${selectedYear}` : formatDate(selectedDate)}.</p>
+            <p role="alert">Could not load attendance for {isStaff ? `${monthNames[selectedMonth - 1]} ${selectedYear}` : formatLocalDate(selectedDate)}.</p>
             <button type="button" onClick={retryAttendance} className="mt-3 underline">Retry</button>
           </div>
         ) : !attendance ? (
@@ -635,7 +644,7 @@ export default function AttendancePage() {
                   {records.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="py-12 text-center text-slate-400 text-xs">
-                        No attendance records logged for {isStaff ? `${monthNames[selectedMonth - 1]} ${selectedYear}` : formatDate(selectedDate)}.
+                        No attendance records logged for {isStaff ? `${monthNames[selectedMonth - 1]} ${selectedYear}` : formatLocalDate(selectedDate)}.
                       </td>
                     </tr>
                   ) : (
