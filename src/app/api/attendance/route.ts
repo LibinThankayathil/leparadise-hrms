@@ -43,8 +43,16 @@ export async function GET(request: Request) {
         lte: endOfMonth,
       };
     } else if (dateStr) {
-      const targetDate = new Date(dateStr);
-      where.date = targetDate;
+      const parts = dateStr.split('-').map(Number);
+      if (parts.length === 3 && parts.every((n) => !Number.isNaN(n))) {
+        const [y, m, d] = parts;
+        const startOfDay = new Date(y, m - 1, d, 0, 0, 0, 0);
+        const endOfDay = new Date(y, m - 1, d, 23, 59, 59, 999);
+        where.date = {
+          gte: startOfDay,
+          lte: endOfDay,
+        };
+      }
     }
 
     const records = await prisma.attendanceRecord.findMany({
@@ -60,7 +68,7 @@ export async function GET(request: Request) {
           },
         },
       },
-      orderBy: { date: 'asc' },
+      orderBy: dateStr ? [{ clockIn: 'asc' }, { employee: { firstName: 'asc' } }] : { date: 'asc' },
       ...(month && year ? {} : { take: 100 }),
     });
 

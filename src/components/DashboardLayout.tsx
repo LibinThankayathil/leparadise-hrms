@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Sidebar } from './Sidebar';
+import { MobileBottomNav } from './MobileBottomNav';
 import { LoadingScreen } from './LoadingScreen';
 import { useAuth } from '@/context/AuthContext';
 import { Menu } from 'lucide-react';
@@ -55,10 +56,13 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           <div className="w-8" />
         </div>
 
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
+        <main className="flex-1 p-4 pb-24 sm:p-6 sm:pb-24 md:pb-8 lg:p-8 overflow-y-auto">
           {children}
         </main>
       </div>
+
+      {/* Floating Bottom Navigation Pill (Mobile only) */}
+      <MobileBottomNav user={user} onOpenMenu={() => setSidebarOpen(true)} />
     </div>
   );
 }

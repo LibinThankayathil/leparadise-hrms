@@ -5,7 +5,7 @@ import { DashboardLayout } from '@/components/DashboardLayout';
 import { InlineLoader } from '@/components/LoadingScreen';
 import { useAuth } from '@/context/AuthContext';
 import { Permissions } from '@/lib/permissions';
-import { CalendarDays, X, FileText } from 'lucide-react';
+import { CalendarDays, X } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 
 export default function LeavesPage() {
@@ -121,18 +121,10 @@ export default function LeavesPage() {
               </p>
             </div>
           </div>
-
-          <button
-            type="button"
-            onClick={() => setShowModal(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#2D7A58] hover:bg-[#256549] text-white rounded-lg text-[13px] font-semibold shadow-sm transition-all cursor-pointer self-start sm:self-auto"
-          >
-            <span>+ Request Leave</span>
-          </button>
         </div>
 
-        {/* Leave Balances Grid - Responsive */}
-        {balances.length > 0 && (
+        {/* Leave Balances Grid - Responsive (Employees only) */}
+        {isStaff && balances.length > 0 && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {balances.map((b) => {
               const remaining = b.totalDays - b.usedDays;
@@ -161,13 +153,15 @@ export default function LeavesPage() {
             Active Requests ({requests.length})
           </span>
 
-          <button
-            onClick={() => window.print()}
-            className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-[#EAECF0] hover:border-slate-300 text-[#344054] rounded-lg text-[13px] font-medium shadow-subtle cursor-pointer"
-          >
-            <FileText className="w-3.5 h-3.5 text-slate-400" />
-            <span>Export PDF</span>
-          </button>
+          {isStaff && (
+            <button
+              type="button"
+              onClick={() => setShowModal(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#2D7A58] hover:bg-[#256549] text-white rounded-lg text-[13px] font-semibold shadow-sm transition-all cursor-pointer"
+            >
+              <span>+ Request Leave</span>
+            </button>
+          )}
         </div>
 
         {/* Leave Requests Table */}

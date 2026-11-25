@@ -10,7 +10,6 @@ import {
   Users, 
   Search, 
   ChevronDown, 
-  FileText, 
   X,
   Trash2,
   AlertTriangle,
@@ -495,14 +494,6 @@ export default function EmployeesPage() {
               />
             </div>
 
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-[#EAECF0] hover:border-slate-300 text-[#344054] rounded-lg text-[13px] font-medium shadow-subtle transition-colors cursor-pointer shrink-0"
-            >
-              <FileText className="w-3.5 h-3.5 text-slate-400" />
-              <span>Export PDF</span>
-            </button>
           </div>
         </div>
 
