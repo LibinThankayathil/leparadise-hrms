@@ -114,6 +114,15 @@ export default function DashboardPage() {
             </div>
           </div>
 
+          {isStaff && (
+            <Link
+              href="/dashboard/self-service"
+              className="text-sm font-semibold text-[#2D7A58] hover:underline"
+            >
+              Employee Self-Service
+            </Link>
+          )}
+
           <div className="inline-flex items-center gap-2 bg-[#FAFBFB] px-3.5 py-1.5 rounded-lg border border-[#EAECF0] shadow-subtle text-xs font-medium text-[#535862] w-fit">
             <Clock4 className="w-3.5 h-3.5 text-[#2D7A58] animate-pulse" />
             <span>

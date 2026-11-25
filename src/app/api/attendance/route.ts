@@ -61,7 +61,7 @@ export async function GET(request: Request) {
         },
       },
       orderBy: { date: 'asc' },
-      take: month && year ? 500 : 100,
+      ...(month && year ? {} : { take: 100 }),
     });
 
     // Check today's record for logged-in user

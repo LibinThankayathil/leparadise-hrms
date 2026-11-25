@@ -28,8 +28,12 @@ import { InlineLoader } from '@/components/LoadingScreen';
 import { formatDate } from '@/lib/utils';
 
 export function EmployeeSelfServiceDashboard() {
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [requestVersion, setRequestVersion] = useState(0);
+  const [result, setResult] = useState<
+    | { version: number; data: any; expiresAt: number }
+    | { version: number; error: true }
+    | null
+  >(null);
   const [clockLoading, setClockLoading] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -48,25 +52,43 @@ export function EmployeeSelfServiceDashboard() {
     }
   }, [toastMessage]);
 
-  const loadDashboard = async () => {
-    try {
-      const res = await fetch('/api/employee/dashboard');
-      if (res.ok) {
-        const d = await res.json();
-        setData(d);
-      }
-    } catch (e) {
-      console.error('Failed to load employee self-service data:', e);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const refreshDashboard = () => setRequestVersion((version) => version + 1);
+  const currentResult = result?.version === requestVersion ? result : null;
+  const loaded = currentResult && 'data' in currentResult ? currentResult : null;
+  const expired = !!loaded && currentTime.getTime() >= loaded.expiresAt;
 
   useEffect(() => {
-    loadDashboard();
-  }, []);
+    if (expired) setRequestVersion((version) => version + 1);
+  }, [expired]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadDashboard() {
+      try {
+        const res = await fetch('/api/employee/dashboard', { signal: controller.signal });
+        if (!res.ok) throw new Error(`Dashboard request failed: ${res.status}`);
+        const data = await res.json();
+        const expiresAt = Date.parse(data.nextAttendanceDayAt);
+        if (!data.profile || !('todayAttendance' in data) || !Number.isFinite(expiresAt)) {
+          throw new Error('Incomplete dashboard response');
+        }
+        if (!controller.signal.aborted) setResult({ version: requestVersion, data, expiresAt });
+      } catch {
+        if (!controller.signal.aborted) setResult({ version: requestVersion, error: true });
+      }
+    }
+
+    void loadDashboard();
+    return () => controller.abort();
+  }, [requestVersion]);
 
   const handleClock = async (action: 'CLOCK_IN' | 'CLOCK_OUT') => {
+    if (!loaded || expired || clockLoading) return;
+    if (Date.now() >= loaded.expiresAt) {
+      refreshDashboard();
+      return;
+    }
     setClockLoading(true);
     try {
       const res = await fetch('/api/attendance', {
@@ -84,7 +106,7 @@ export function EmployeeSelfServiceDashboard() {
             ? 'Successfully clocked in for today!' 
             : 'Successfully clocked out. Have a great day!'
         );
-        await loadDashboard();
+        refreshDashboard();
       }
     } catch (e) {
       console.error(e);
@@ -94,7 +116,16 @@ export function EmployeeSelfServiceDashboard() {
     }
   };
 
-  if (loading) {
+  if (currentResult && 'error' in currentResult) {
+    return (
+      <div className="py-24 text-center">
+        <p role="alert">Could not load your Self-Service workspace.</p>
+        <button type="button" onClick={refreshDashboard} className="mt-3 underline">Retry</button>
+      </div>
+    );
+  }
+
+  if (!loaded || expired) {
     return (
       <div className="py-24">
         <InlineLoader message="Loading your Self-Service workspace..." />
@@ -102,7 +133,11 @@ export function EmployeeSelfServiceDashboard() {
     );
   }
 
-  const profile = data?.profile;
+  const { data } = loaded;
+  const profile = data.profile;
+  const initials = [profile.firstName, profile.lastName]
+    .map((name) => (name?.trim() || '').slice(0, 1))
+    .join('').toUpperCase();
   const todayRecord = data?.todayAttendance;
   const isClockedIn = !!todayRecord?.clockIn;
   const isClockedOut = !!todayRecord?.clockOut;
@@ -156,12 +191,8 @@ export function EmployeeSelfServiceDashboard() {
         <div className="absolute right-0 top-0 bottom-0 w-96 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-emerald-500/10 via-transparent to-transparent pointer-events-none" />
 
         <div className="flex items-center gap-4 relative z-10">
-          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white/10 border border-white/15 overflow-hidden shrink-0 shadow-inner flex items-center justify-center">
-            <img
-              src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${profile?.firstName}_${profile?.lastName}`}
-              alt=""
-              className="w-full h-full object-cover"
-            />
+          <div aria-hidden="true" className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white/10 border border-white/15 shrink-0 shadow-inner flex items-center justify-center text-lg font-bold">
+            {initials}
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
@@ -403,7 +434,7 @@ export function EmployeeSelfServiceDashboard() {
 
             <div className="mt-3 divide-y divide-[#EAECF0]">
               {last7Days.map((dayDate, idx) => {
-                const dateKey = dayDate.toISOString().slice(0, 10);
+                const dateKey = `${dayDate.getFullYear()}-${String(dayDate.getMonth() + 1).padStart(2, '0')}-${String(dayDate.getDate()).padStart(2, '0')}`;
                 const isToday = dayDate.toDateString() === new Date().toDateString();
                 const dayOfWeek = dayDate.getDay();
                 const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
@@ -412,7 +443,7 @@ export function EmployeeSelfServiceDashboard() {
                 const record = thisWeekAttendance.find((r) => {
                   const rDate = new Date(r.date).toISOString().slice(0, 10);
                   return rDate === dateKey;
-                }) || (isToday ? todayRecord : null);
+                });
 
                 return (
                   <div key={idx} className="py-2.5 flex items-center justify-between text-xs">

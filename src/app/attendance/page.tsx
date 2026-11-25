@@ -31,10 +31,20 @@ export default function AttendancePage() {
   const [selectedYear, setSelectedYear] = useState(today.getFullYear());
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>(isStaff ? 'calendar' : 'list');
 
-  const [records, setRecords] = useState<any[]>([]);
-  const [todayRecord, setTodayRecord] = useState<any>(null);
-  const [approvedLeaves, setApprovedLeaves] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [reload, setReload] = useState(0);
+  const [result, setResult] = useState<
+    | { key: string; data: { records: any[]; todayRecord: any; approvedLeaves: any[] } }
+    | { key: string; error: true }
+    | null
+  >(null);
+  const requestKey = JSON.stringify([user?.id, selectedYear, selectedMonth, reload]);
+  const selectedResult = result?.key === requestKey ? result : null;
+  const attendance = selectedResult && 'data' in selectedResult ? selectedResult.data : null;
+  const [records, todayRecord, approvedLeaves] = [
+    attendance?.records ?? [], attendance?.todayRecord ?? null, attendance?.approvedLeaves ?? [],
+  ] as const;
+  const showCalendar = isStaff && viewMode === 'calendar';
+  const retryAttendance = () => setReload((count) => count + 1);
   const [clockLoading, setClockLoading] = useState(false);
   const [time, setTime] = useState(new Date());
 
@@ -54,26 +64,27 @@ export default function AttendancePage() {
     }
   }, [isStaff]);
 
-  const loadAttendance = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/attendance?month=${selectedMonth}&year=${selectedYear}`);
-      if (res.ok) {
-        const data = await res.json();
-        setRecords(data.records || []);
-        setTodayRecord(data.todayRecord || null);
-        setApprovedLeaves(data.approvedLeaves || []);
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    loadAttendance();
-  }, [selectedMonth, selectedYear]);
+    if (!user?.id) return;
+    const controller = new AbortController();
+
+    async function loadAttendance() {
+      try {
+        const res = await fetch(`/api/attendance?month=${selectedMonth}&year=${selectedYear}`, {
+          signal: controller.signal,
+        });
+        if (!res.ok) throw new Error(`Attendance request failed: ${res.status}`);
+        const data = await res.json();
+        if (!controller.signal.aborted) setResult({ key: requestKey, data });
+      } catch {
+        if (!controller.signal.aborted) setResult({ key: requestKey, error: true });
+      }
+    }
+
+    setSelectedDayDetail(null);
+    void loadAttendance();
+    return () => controller.abort();
+  }, [requestKey, selectedMonth, selectedYear, user?.id]);
 
   const handleClock = async (action: 'CLOCK_IN' | 'CLOCK_OUT') => {
     setClockLoading(true);
@@ -85,7 +96,7 @@ export default function AttendancePage() {
       });
 
       if (res.ok) {
-        await loadAttendance();
+        retryAttendance();
       } else {
         const d = await res.json();
         alert(d.error || 'Attendance action failed');
@@ -98,6 +109,7 @@ export default function AttendancePage() {
   };
 
   const handlePrevMonth = () => {
+    retryAttendance();
     if (selectedMonth === 1) {
       setSelectedMonth(12);
       setSelectedYear((prev) => prev - 1);
@@ -107,6 +119,7 @@ export default function AttendancePage() {
   };
 
   const handleNextMonth = () => {
+    retryAttendance();
     if (selectedMonth === 12) {
       setSelectedMonth(1);
       setSelectedYear((prev) => prev + 1);
@@ -116,6 +129,8 @@ export default function AttendancePage() {
   };
 
   const handleCurrentMonth = () => {
+    if (selectedMonth === today.getMonth() + 1 && selectedYear === today.getFullYear()) return;
+    retryAttendance();
     setSelectedMonth(today.getMonth() + 1);
     setSelectedYear(today.getFullYear());
   };
@@ -132,19 +147,11 @@ export default function AttendancePage() {
 
   // Index records by date string YYYY-MM-DD
   const recordMap = new Map<string, any>();
-  records.forEach((r) => {
-    const d = new Date(r.date);
-    const y = d.getUTCFullYear();
-    const m = String(d.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(d.getUTCDate()).padStart(2, '0');
-    recordMap.set(`${y}-${m}-${day}`, r);
-
-    // Also index local date
-    const ly = d.getFullYear();
-    const lm = String(d.getMonth() + 1).padStart(2, '0');
-    const lday = String(d.getDate()).padStart(2, '0');
-    recordMap.set(`${ly}-${lm}-${lday}`, r);
-  });
+  if (showCalendar && attendance) {
+    records.forEach((record) => {
+      recordMap.set(new Date(record.date).toISOString().slice(0, 10), record);
+    });
+  }
 
   // Check if a date string falls within any approved leave
   const getLeaveForDate = (dateStr: string) => {
@@ -197,7 +204,7 @@ export default function AttendancePage() {
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
 
-  currentMonthDays.forEach((d) => {
+  (showCalendar && attendance ? currentMonthDays : []).forEach((d) => {
     const dateStr = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     const dayDate = new Date(selectedYear, selectedMonth - 1, d);
     const dayOfWeek = dayDate.getDay();
@@ -247,7 +254,7 @@ export default function AttendancePage() {
           <div className="flex items-center gap-2.5 flex-wrap">
             <button
               type="button"
-              disabled={clockLoading || isClockedIn}
+              disabled={!attendance || clockLoading || isClockedIn}
               onClick={() => handleClock('CLOCK_IN')}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#2D7A58] hover:bg-[#256549] text-white font-semibold text-[13px] shadow-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
@@ -260,7 +267,7 @@ export default function AttendancePage() {
             </button>
             <button
               type="button"
-              disabled={clockLoading || !isClockedIn || isClockedOut}
+              disabled={!attendance || clockLoading || !isClockedIn || isClockedOut}
               onClick={() => handleClock('CLOCK_OUT')}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-white hover:bg-slate-50 text-[#344054] border border-[#EAECF0] font-semibold text-[13px] shadow-subtle transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
@@ -314,7 +321,7 @@ export default function AttendancePage() {
           {/* Right Tools: View Mode Toggle & Print */}
           <div className="flex items-center gap-2.5 self-end md:self-auto">
             {/* View Mode Switcher */}
-            <div className="inline-flex items-center p-0.5 bg-[#F4F6F5] border border-[#EAECF0] rounded-lg text-xs font-semibold">
+            {isStaff && <div className="inline-flex items-center p-0.5 bg-[#F4F6F5] border border-[#EAECF0] rounded-lg text-xs font-semibold">
               <button
                 type="button"
                 onClick={() => setViewMode('calendar')}
@@ -339,7 +346,7 @@ export default function AttendancePage() {
                 <List className="w-3.5 h-3.5" />
                 <span>List Table</span>
               </button>
-            </div>
+            </div>}
 
             <button
               onClick={() => window.print()}
@@ -352,7 +359,7 @@ export default function AttendancePage() {
         </div>
 
         {/* Monthly Summary Statistics Cards (Shown on Calendar View) */}
-        {viewMode === 'calendar' && (
+        {showCalendar && attendance && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {/* On-Time Card */}
             <div className="p-4 rounded-xl border border-[#D1EBD9] bg-[#EAF6ED]/60 flex items-center justify-between">
@@ -405,7 +412,7 @@ export default function AttendancePage() {
         )}
 
         {/* Color Legend Bar */}
-        {viewMode === 'calendar' && (
+        {showCalendar && attendance && (
           <div className="flex items-center gap-4 flex-wrap px-4 py-2.5 bg-white border border-[#EAECF0] rounded-xl text-xs shadow-subtle">
             <span className="text-[11px] font-bold text-[#535862] uppercase tracking-wider">Legend:</span>
             <div className="flex items-center gap-1.5">
@@ -432,11 +439,16 @@ export default function AttendancePage() {
         )}
 
         {/* Main Content Area */}
-        {loading ? (
+        {selectedResult && 'error' in selectedResult ? (
+          <div className="py-12 text-center border border-[#EAECF0] rounded-xl bg-white">
+            <p role="alert">Could not load attendance for {monthNames[selectedMonth - 1]} {selectedYear}.</p>
+            <button type="button" onClick={retryAttendance} className="mt-3 underline">Retry</button>
+          </div>
+        ) : !attendance ? (
           <div className="py-20 border border-[#EAECF0] rounded-xl bg-white">
             <InlineLoader message="Loading attendance records..." />
           </div>
-        ) : viewMode === 'calendar' ? (
+        ) : showCalendar ? (
           /* CALENDAR VIEW */
           <div className="bg-white border border-[#EAECF0] rounded-2xl shadow-subtle overflow-hidden">
             {/* Days of Week Header */}
@@ -533,29 +545,23 @@ export default function AttendancePage() {
                 }
 
                 return (
-                  <div
+                  <button
                     key={`day-${d}`}
-                    onClick={() => {
-                      if (!isFuture || isToday) {
-                        setSelectedDayDetail({
-                          day: d,
-                          dateStr,
-                          date: dayDate,
-                          record,
-                          leave,
-                          statusLabel,
-                          isWeekend,
-                          isToday,
-                          isFuture,
-                        });
-                      }
-                    }}
-                    className={`min-h-[95px] sm:min-h-[105px] p-1 sm:p-1.5 transition-all flex flex-col justify-between cursor-pointer group ${cellClass} ${
+                    type="button"
+                    disabled={isFuture}
+                    aria-label={`${dayDate.toLocaleDateString('en-US', { dateStyle: 'full' })}: ${statusLabel || 'Future day'}`}
+                    onClick={() => setSelectedDayDetail({
+                      date: dayDate,
+                      record,
+                      leave,
+                      statusLabel,
+                    })}
+                    className={`min-h-[95px] sm:min-h-[105px] p-1 sm:p-1.5 transition-all flex flex-col justify-between cursor-pointer disabled:cursor-default focus-visible:z-10 focus-visible:outline group ${cellClass} ${
                       isToday ? 'ring-2 ring-inset ring-[#2D7A58]' : ''
                     }`}
                   >
                     {/* Top Row: Date Number & Today Indicator */}
-                    <div className="flex items-center justify-between">
+                    <span className="flex items-center justify-between">
                       <span
                         className={`text-sm sm:text-base font-extrabold transition-colors ${
                           isToday
@@ -570,29 +576,29 @@ export default function AttendancePage() {
                           Today
                         </span>
                       )}
-                    </div>
+                    </span>
 
                     {/* Middle / Bottom: Status Pill & Time Stamp */}
-                    <div className="mt-1 space-y-0.5">
+                    <span className="block mt-1 space-y-0.5">
                       {statusLabel && (
-                        <div
-                          className={`text-[10px] sm:text-[11px] font-semibold px-1 sm:px-1.5 py-0.5 rounded-md border truncate text-center ${statusBadgeClass}`}
+                        <span
+                          className={`block text-[10px] sm:text-[11px] font-semibold px-1 sm:px-1.5 py-0.5 rounded-md border truncate text-center ${statusBadgeClass}`}
                         >
                           {statusLabel}
-                        </div>
+                        </span>
                       )}
 
                       {/* Display Clock-In / Out details if available */}
                       {record && record.clockIn && (
-                        <div className="text-[9px] sm:text-[10px] text-slate-500 font-mono text-center truncate">
+                        <span className="block text-[9px] sm:text-[10px] text-slate-500 font-mono text-center truncate">
                           {new Date(record.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           {record.clockOut && (
                             <> &rarr; {new Date(record.clockOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</>
                           )}
-                        </div>
+                        </span>
                       )}
-                    </div>
-                  </div>
+                    </span>
+                  </button>
                 );
               })}
 
@@ -684,7 +690,7 @@ export default function AttendancePage() {
         )}
 
         {/* Selected Day Details Popover / Modal */}
-        {selectedDayDetail && (
+        {showCalendar && attendance && selectedDayDetail && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
             <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-[#EAECF0] overflow-hidden">
               <div className="flex items-center justify-between pb-3 border-b border-[#EAECF0]">

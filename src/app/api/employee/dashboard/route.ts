@@ -5,7 +5,7 @@ import { AttendanceStatus, LeaveStatus } from '@prisma/client';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
     const session = await getSession();
     if (!session || !session.employeeId) {
@@ -20,7 +20,8 @@ export async function GET(request: Request) {
     today.setHours(0, 0, 0, 0);
 
     const currentYear = today.getFullYear();
-    const currentMonth = today.getMonth() + 1;
+    const nextAttendanceDayAt = new Date(today);
+    nextAttendanceDayAt.setDate(today.getDate() + 1);
 
     // Start and end of current month
     const startOfMonth = new Date(currentYear, today.getMonth(), 1);
@@ -87,53 +88,31 @@ export async function GET(request: Request) {
       absentCount: monthRecords.filter((r) => r.status === AttendanceStatus.ABSENT).length,
     };
 
-    // 5. Leave Balances for Current Year (auto-initialize if missing)
-    let leaveBalances = await prisma.leaveBalance.findMany({
-      where: {
-        employeeId,
-        year: currentYear,
-      },
-      include: {
-        leaveType: true,
-      },
-      orderBy: { leaveType: { name: 'asc' } },
+    // Fill in missing annual balances without changing existing allocations or usage.
+    const leaveTypes = await prisma.leaveType.findMany({
+      orderBy: { name: 'asc' },
     });
+    const leaveBalanceQuery = {
+      where: { employeeId, year: currentYear },
+      include: { leaveType: true },
+      orderBy: { leaveType: { name: 'asc' } },
+    } as const;
+    let leaveBalances = await prisma.leaveBalance.findMany(leaveBalanceQuery);
+    const existingTypeIds = new Set(leaveBalances.map((balance) => balance.leaveTypeId));
+    const missingTypes = leaveTypes.filter((type) => !existingTypeIds.has(type.id));
 
-    // Auto-seed balances if none exist for this year
-    if (leaveBalances.length === 0) {
-      const allLeaveTypes = await prisma.leaveType.findMany();
-      if (allLeaveTypes.length > 0) {
-        for (const lt of allLeaveTypes) {
-          await prisma.leaveBalance.upsert({
-            where: {
-              employeeId_leaveTypeId_year: {
-                employeeId,
-                leaveTypeId: lt.id,
-                year: currentYear,
-              },
-            },
-            update: {},
-            create: {
-              employeeId,
-              leaveTypeId: lt.id,
-              totalDays: lt.defaultDays,
-              usedDays: 0,
-              year: currentYear,
-            },
-          });
-        }
-
-        leaveBalances = await prisma.leaveBalance.findMany({
-          where: {
-            employeeId,
-            year: currentYear,
-          },
-          include: {
-            leaveType: true,
-          },
-          orderBy: { leaveType: { name: 'asc' } },
-        });
-      }
+    if (missingTypes.length > 0) {
+      await prisma.leaveBalance.createMany({
+        data: missingTypes.map((type) => ({
+          employeeId,
+          leaveTypeId: type.id,
+          totalDays: type.defaultDays,
+          usedDays: 0,
+          year: currentYear,
+        })),
+        skipDuplicates: true,
+      });
+      leaveBalances = await prisma.leaveBalance.findMany(leaveBalanceQuery);
     }
 
     // 6. Recent Leave Requests (up to 5)
@@ -152,14 +131,10 @@ export async function GET(request: Request) {
       orderBy: [{ year: 'desc' }, { month: 'desc' }],
     });
 
-    // 8. Available Leave Types (for quick modal submission)
-    const leaveTypes = await prisma.leaveType.findMany({
-      orderBy: { name: 'asc' },
-    });
-
     return NextResponse.json({
       profile,
       todayAttendance,
+      nextAttendanceDayAt,
       thisWeekAttendance,
       monthAttendanceStats,
       leaveBalances,
