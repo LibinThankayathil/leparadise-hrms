@@ -176,7 +176,7 @@ export default function LeavesPage() {
             <table className="w-full text-left border-collapse text-[13px] min-w-[760px]">
               <thead>
                 <tr className="bg-[#FAFBFB] border-b border-[#EAECF0] text-[11px] font-semibold text-[#535862]">
-                  <th className="py-3 px-4">Staff Member</th>
+                  {!isStaff && <th className="py-3 px-4">Staff Member</th>}
                   <th className="py-3 px-4">Leave Category</th>
                   <th className="py-3 px-4">Duration Range</th>
                   <th className="py-3 px-4">Days</th>
@@ -188,31 +188,33 @@ export default function LeavesPage() {
               <tbody className="divide-y divide-[#EAECF0] text-[#181D27]">
                 {loading ? (
                   <tr>
-                    <td colSpan={canReview ? 7 : 6} className="py-8">
+                    <td colSpan={(!isStaff ? 1 : 0) + 5 + (canReview ? 1 : 0)} className="py-8">
                       <InlineLoader message="Loading leave inquiries..." />
                     </td>
                   </tr>
                 ) : requests.length === 0 ? (
                   <tr>
-                    <td colSpan={canReview ? 7 : 6} className="py-12 text-center text-slate-400 text-xs">
+                    <td colSpan={(!isStaff ? 1 : 0) + 5 + (canReview ? 1 : 0)} className="py-12 text-center text-slate-400 text-xs">
                       {isStaff ? 'You have no leave requests submitted yet.' : 'No leave requests submitted yet.'}
                     </td>
                   </tr>
                 ) : (
                   requests.map((req) => (
                     <tr key={req.id} className="hover:bg-[#F9FAFB] transition-colors">
-                      <td className="py-3 px-4 font-semibold text-[#181D27]">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-7 h-7 rounded-full bg-slate-200 overflow-hidden shrink-0">
-                            <img
-                              src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${req.employee?.firstName}`}
-                              alt=""
-                              className="w-full h-full object-cover"
-                            />
+                      {!isStaff && (
+                        <td className="py-3 px-4 font-semibold text-[#181D27]">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-7 h-7 rounded-full bg-slate-200 overflow-hidden shrink-0">
+                              <img
+                                src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${req.employee?.firstName}`}
+                                alt=""
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            <span>{req.employee?.firstName} {req.employee?.lastName}</span>
                           </div>
-                          <span>{req.employee?.firstName} {req.employee?.lastName}</span>
-                        </div>
-                      </td>
+                        </td>
+                      )}
                       <td className="py-3 px-4 text-[#535862]">
                         {req.leaveType?.name}
                       </td>

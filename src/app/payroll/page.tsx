@@ -163,7 +163,7 @@ export default function PayrollPage() {
             <table className="w-full text-left border-collapse text-[13px] min-w-[760px]">
               <thead>
                 <tr className="bg-[#FAFBFB] border-b border-[#EAECF0] text-[11px] font-semibold text-[#535862]">
-                  <th className="py-3 px-4">Staff Member</th>
+                  {!isStaff && <th className="py-3 px-4">Staff Member</th>}
                   <th className="py-3 px-4">Department</th>
                   <th className="py-3 px-4">Base Wages</th>
                   <th className="py-3 px-4">Allowances</th>
@@ -176,31 +176,33 @@ export default function PayrollPage() {
               <tbody className="divide-y divide-[#EAECF0] text-[#181D27]">
                 {loading ? (
                   <tr>
-                    <td colSpan={8} className="py-8">
+                    <td colSpan={isStaff ? 7 : 8} className="py-8">
                       <InlineLoader message="Loading payroll records..." />
                     </td>
                   </tr>
                 ) : payslips.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-12 text-center text-slate-400 text-xs">
+                    <td colSpan={isStaff ? 7 : 8} className="py-12 text-center text-slate-400 text-xs">
                       No payroll records processed for {monthNames[month - 1]} {year}. Click "+ Run Monthly Payroll" to disburse.
                     </td>
                   </tr>
                 ) : (
                   payslips.map((ps) => (
                     <tr key={ps.id} className="hover:bg-[#F9FAFB] transition-colors">
-                      <td className="py-3 px-4 font-semibold text-[#181D27]">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-7 h-7 rounded-full bg-slate-200 overflow-hidden shrink-0">
-                            <img
-                              src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${ps.employee?.firstName}`}
-                              alt=""
-                              className="w-full h-full object-cover"
-                            />
+                      {!isStaff && (
+                        <td className="py-3 px-4 font-semibold text-[#181D27]">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-7 h-7 rounded-full bg-slate-200 overflow-hidden shrink-0">
+                              <img
+                                src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${ps.employee?.firstName}`}
+                                alt=""
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            <span>{ps.employee?.firstName} {ps.employee?.lastName}</span>
                           </div>
-                          <span>{ps.employee?.firstName} {ps.employee?.lastName}</span>
-                        </div>
-                      </td>
+                        </td>
+                      )}
                       <td className="py-3 px-4 text-[#535862]">
                         {ps.employee?.department?.name || 'Hotel Operations'}
                       </td>
