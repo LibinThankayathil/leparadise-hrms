@@ -34,7 +34,6 @@ function employeeFormValues(emp: any) {
     password: '',
     employeeCode: emp.employeeCode || '',
     designation: emp.designation || '',
-    departmentId: emp.departmentId || emp.department?.id || '',
     role: emp.user?.role || 'EMPLOYEE',
     phone: emp.phone || '',
     baseSalary: Number(emp.baseSalary ?? 0) / 12,
@@ -90,9 +89,7 @@ export default function EmployeesPage() {
   }, [user, authLoading]);
 
   const [employees, setEmployees] = useState<any[]>([]);
-  const [departments, setDepartments] = useState<any[]>([]);
   const [search, setSearch] = useState('');
-  const [selectedDept, setSelectedDept] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -126,7 +123,6 @@ export default function EmployeesPage() {
     password: '',
     employeeCode: '',
     designation: '',
-    departmentId: '',
     role: 'EMPLOYEE',
     phone: '',
     baseSalary: 1400,
@@ -143,21 +139,13 @@ export default function EmployeesPage() {
       try {
         const query = new URLSearchParams();
         if (search) query.append('search', search);
-        if (selectedDept) query.append('departmentId', selectedDept);
         if (selectedStatus) query.append('status', selectedStatus);
 
-        const [empRes, deptRes] = await Promise.all([
-          fetch(`/api/employees?${query.toString()}`, { signal }),
-          fetch('/api/departments', { signal }),
-        ]);
+        const empRes = await fetch(`/api/employees?${query.toString()}`, { signal });
 
         if (empRes.ok) {
           const d = await empRes.json();
           if (!signal.aborted) setEmployees(d.employees);
-        }
-        if (deptRes.ok) {
-          const d = await deptRes.json();
-          if (!signal.aborted) setDepartments(d.departments);
         }
       } catch (e) {
         if (!signal.aborted) console.error(e);
@@ -168,7 +156,7 @@ export default function EmployeesPage() {
 
     loadData();
     return () => controller.abort();
-  }, [search, selectedDept, selectedStatus, refreshVersion]);
+  }, [search, selectedStatus, refreshVersion]);
 
   useEffect(() => {
     if (successMessage) {
@@ -310,7 +298,6 @@ export default function EmployeesPage() {
         password: '',
         employeeCode: '',
         designation: '',
-        departmentId: '',
         role: 'EMPLOYEE',
         phone: '',
         baseSalary: 1400,
@@ -346,7 +333,6 @@ export default function EmployeesPage() {
       );
       const payload = {
         ...changedFields,
-        ...('departmentId' in changedFields && { departmentId: editFormData.departmentId || null }),
         ...('phone' in changedFields && { phone: editFormData.phone || null }),
         ...('baseSalary' in changedFields && { baseSalary: editFormData.baseSalary * 12 }),
         ...(editFormData.password.trim() && { password: editFormData.password }),
@@ -391,7 +377,7 @@ export default function EmployeesPage() {
 
   // Calculate total table columns (Actions column is always visible to allow viewing full profile)
   const hasActions = true;
-  let totalColumns = 6; // Staff ID, Name, Dept, Designation, Email, Mobile
+  let totalColumns = 5; // Staff ID, Name, Designation, Email, Mobile
   if (canDeleteStaff) totalColumns += 1; // Checkbox
   if (canViewSalary) totalColumns += 1; // Salary
   totalColumns += 1; // Status
@@ -430,7 +416,7 @@ export default function EmployeesPage() {
                 Staff Directory
               </h1>
               <p className="text-xs text-[#717680] font-normal mt-0.5">
-                Active staff members, allocated departments, and employment status
+                Active staff members and their employment status
               </p>
             </div>
           </div>
@@ -450,22 +436,6 @@ export default function EmployeesPage() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-1">
           {/* Functional Filters */}
           <div className="flex items-center gap-2 flex-wrap">
-            <div className="relative">
-              <select
-                value={selectedDept}
-                onChange={(e) => setSelectedDept(e.target.value)}
-                className="appearance-none bg-white border border-[#EAECF0] hover:border-slate-300 text-[#344054] text-[13px] font-medium pl-3.5 pr-8 py-2 rounded-lg shadow-subtle focus:outline-none focus:ring-1 focus:ring-[#2D7A58] cursor-pointer"
-              >
-                <option value="">All Departments</option>
-                {departments.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            </div>
-
             <div className="relative">
               <select
                 value={selectedStatus}
@@ -545,7 +515,6 @@ export default function EmployeesPage() {
                   )}
                   <th className="py-3 px-4">Staff ID</th>
                   <th className="py-3 px-4">Name of Staff</th>
-                  <th className="py-3 px-4">Department</th>
                   <th className="py-3 px-4">Designation</th>
                   <th className="py-3 px-4">Email</th>
                   <th className="py-3 px-4">Mobile</th>
@@ -606,9 +575,6 @@ export default function EmployeesPage() {
                             </div>
                             <span className="truncate group-hover:underline underline-offset-2">{emp.firstName} {emp.lastName}</span>
                           </Link>
-                        </td>
-                        <td className="py-3 px-4 text-[#535862]">
-                          {emp.department?.name || 'General Operations'}
                         </td>
                         <td className="py-3 px-4 text-[#535862]">
                           {emp.designation}
@@ -797,33 +763,16 @@ export default function EmployeesPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-[#344054] mb-1">Department</label>
-                    <select
-                      value={formData.departmentId}
-                      onChange={(e) => setFormData({ ...formData, departmentId: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-[#EAECF0] rounded-lg text-[13px] focus:ring-1 focus:ring-[#2D7A58] outline-none"
-                    >
-                      <option value="">Select Department</option>
-                      {departments.map((d) => (
-                        <option key={d.id} value={d.id}>
-                          {d.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-[#344054] mb-1">System Role</label>
-                    <select
-                      value={formData.role}
-                      onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-[#EAECF0] rounded-lg text-[13px] focus:ring-1 focus:ring-[#2D7A58] outline-none"
-                    >
-                      <option value="EMPLOYEE">Staff Employee</option>
-                      <option value="MANAGER">Manager</option>
-                    </select>
-                  </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#344054] mb-1">System Role</label>
+                  <select
+                    value={formData.role}
+                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                    className="w-full px-3 py-2 bg-white border border-[#EAECF0] rounded-lg text-[13px] focus:ring-1 focus:ring-[#2D7A58] outline-none"
+                  >
+                    <option value="EMPLOYEE">Staff Employee</option>
+                    <option value="MANAGER">Manager</option>
+                  </select>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -985,33 +934,16 @@ export default function EmployeesPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-[#344054] mb-1">Department</label>
-                    <select
-                      value={editFormData.departmentId}
-                      onChange={(e) => setEditFormData({ ...editFormData, departmentId: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-[#EAECF0] rounded-lg text-[13px] focus:ring-1 focus:ring-[#2D7A58] outline-none"
-                    >
-                      <option value="">No Department</option>
-                      {departments.map((d) => (
-                        <option key={d.id} value={d.id}>
-                          {d.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-[#344054] mb-1">System Role</label>
-                    <select
-                      value={editFormData.role}
-                      onChange={(e) => setEditFormData({ ...editFormData, role: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-[#EAECF0] rounded-lg text-[13px] focus:ring-1 focus:ring-[#2D7A58] outline-none"
-                    >
-                      <option value="EMPLOYEE">Staff Employee</option>
-                      <option value="MANAGER">Manager</option>
-                    </select>
-                  </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#344054] mb-1">System Role</label>
+                  <select
+                    value={editFormData.role}
+                    onChange={(e) => setEditFormData({ ...editFormData, role: e.target.value })}
+                    className="w-full px-3 py-2 bg-white border border-[#EAECF0] rounded-lg text-[13px] focus:ring-1 focus:ring-[#2D7A58] outline-none"
+                  >
+                    <option value="EMPLOYEE">Staff Employee</option>
+                    <option value="MANAGER">Manager</option>
+                  </select>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

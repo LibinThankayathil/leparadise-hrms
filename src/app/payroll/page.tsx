@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/DashboardLayout';
-import { InlineLoader } from '@/components/LoadingScreen';
 import { useAuth } from '@/context/AuthContext';
 import { Permissions } from '@/lib/permissions';
 import { 
@@ -95,7 +94,7 @@ export default function PayrollPage() {
               </h1>
               <p className="text-xs text-[#717680] font-normal mt-0.5">
                 {isStaff 
-                  ? 'Review and download your monthly compensation vouchers and payment records'
+                  ? 'Review and download your monthly payslips and payment records'
                   : 'Monthly wage compensation, deductions, and downloadable employee payslips'}
               </p>
             </div>
@@ -156,25 +155,39 @@ export default function PayrollPage() {
               <thead>
                 <tr className="bg-[#FAFBFB] border-b border-[#EAECF0] text-[11px] font-semibold text-[#535862]">
                   {!isStaff && <th className="py-3 px-4">Staff Member</th>}
-                  <th className="py-3 px-4">Department</th>
                   <th className="py-3 px-4">Base Wages</th>
                   <th className="py-3 px-4">Allowances</th>
                   <th className="py-3 px-4">Deductions</th>
                   <th className="py-3 px-4">Net Salary</th>
                   <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Voucher</th>
+                  <th className="py-3 px-4 text-right">Payslip</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#EAECF0] text-[#181D27]">
                 {loading ? (
-                  <tr>
-                    <td colSpan={isStaff ? 7 : 8} className="py-8">
-                      <InlineLoader message="Loading payroll records..." />
-                    </td>
-                  </tr>
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <tr key={`skel-payslip-${i}`} className="animate-pulse">
+                      {!isStaff && (
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-7 h-7 rounded-full bg-slate-200 shrink-0" />
+                            <div className="h-3.5 w-28 rounded bg-slate-200" />
+                          </div>
+                        </td>
+                      )}
+                      <td className="py-3 px-4"><div className="h-3.5 w-20 rounded bg-slate-200" /></td>
+                      <td className="py-3 px-4"><div className="h-3.5 w-16 rounded bg-slate-100" /></td>
+                      <td className="py-3 px-4"><div className="h-3.5 w-16 rounded bg-slate-100" /></td>
+                      <td className="py-3 px-4"><div className="h-3.5 w-20 rounded bg-slate-200" /></td>
+                      <td className="py-3 px-4"><div className="h-5 w-14 rounded-full bg-slate-200" /></td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="inline-block h-7 w-24 rounded-lg bg-slate-100" />
+                      </td>
+                    </tr>
+                  ))
                 ) : payslips.length === 0 ? (
                   <tr>
-                    <td colSpan={isStaff ? 7 : 8} className="py-12 text-center text-slate-400 text-xs">
+                    <td colSpan={isStaff ? 6 : 7} className="py-12 text-center text-slate-400 text-xs">
                       No payroll records processed for {monthNames[month - 1]} {year}. Click "+ Run Monthly Payroll" to disburse.
                     </td>
                   </tr>
@@ -195,9 +208,6 @@ export default function PayrollPage() {
                           </div>
                         </td>
                       )}
-                      <td className="py-3 px-4 text-[#535862]">
-                        {ps.employee?.department?.name || 'Hotel Operations'}
-                      </td>
                       <td className="py-3 px-4 font-mono text-[#535862]">
                         {formatCurrency(ps.basicSalary)}
                       </td>
@@ -220,7 +230,7 @@ export default function PayrollPage() {
                           onClick={() => setSelectedPayslip(ps)}
                           className="px-2.5 py-1 text-xs font-semibold bg-white border border-[#EAECF0] hover:bg-slate-50 text-[#344054] rounded-lg transition-colors shadow-subtle cursor-pointer"
                         >
-                          View Voucher
+                          View Payslip
                         </button>
                       </td>
                     </tr>
@@ -231,7 +241,7 @@ export default function PayrollPage() {
           </div>
         </div>
 
-        {/* Voucher Modal */}
+        {/* Payslip Modal */}
         {selectedPayslip && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
             <div className="bg-white rounded-2xl max-w-lg w-full p-7 shadow-2xl border border-[#EAECF0]">
@@ -242,7 +252,7 @@ export default function PayrollPage() {
                   </div>
                   <div>
                     <h3 className="font-bold text-[#181D27] text-base">Le Paradise HRMS</h3>
-                    <p className="text-xs text-[#717680]">Official Staff Wage Voucher</p>
+                    <p className="text-xs text-[#717680]">Official Staff Payslip</p>
                   </div>
                 </div>
                 <button
@@ -314,7 +324,7 @@ export default function PayrollPage() {
                   className="inline-flex items-center gap-1.5 px-4 py-2 border border-[#EAECF0] rounded-lg text-xs font-semibold text-[#344054] hover:bg-slate-50 shadow-subtle cursor-pointer"
                 >
                   <Printer className="w-3.5 h-3.5" />
-                  <span>Print Voucher</span>
+                  <span>Print Payslip</span>
                 </button>
                 <button
                   type="button"

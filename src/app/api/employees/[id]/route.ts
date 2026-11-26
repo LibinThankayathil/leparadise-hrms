@@ -21,7 +21,6 @@ const updateEmployeeSchema = z.object({
   role: z.nativeEnum(Role).optional(),
   employeeCode: z.string().min(2).optional(),
   phone: z.string().optional().nullable(),
-  departmentId: z.string().optional().nullable(),
   designation: z.string().min(1).optional(),
   managerId: z.string().optional().nullable(),
   baseSalary: z.number().min(0).optional(),
@@ -49,7 +48,6 @@ export async function GET(
       where: { id },
       include: {
         user: { select: { id: true, email: true, role: true, isActive: true, createdAt: true } },
-        department: { select: { id: true, name: true, description: true } },
         manager: { select: { id: true, firstName: true, lastName: true, designation: true, employeeCode: true } },
         subordinates: {
           select: { id: true, firstName: true, lastName: true, designation: true, employeeCode: true, status: true },
@@ -217,7 +215,6 @@ export async function PUT(
       if (data.lastName !== undefined) employeeUpdate.lastName = data.lastName;
       if (data.employeeCode !== undefined) employeeUpdate.employeeCode = data.employeeCode;
       if (data.phone !== undefined) employeeUpdate.phone = data.phone || null;
-      if (data.departmentId !== undefined) employeeUpdate.departmentId = data.departmentId || null;
       if (data.designation !== undefined) employeeUpdate.designation = data.designation;
       if (data.managerId !== undefined) employeeUpdate.managerId = data.managerId || null;
       if (data.baseSalary !== undefined) employeeUpdate.baseSalary = data.baseSalary;
@@ -228,7 +225,6 @@ export async function PUT(
         data: employeeUpdate,
         include: {
           user: { select: { email: true, role: true, isActive: true } },
-          department: { select: { id: true, name: true } },
           manager: { select: { id: true, firstName: true, lastName: true } },
         },
       });

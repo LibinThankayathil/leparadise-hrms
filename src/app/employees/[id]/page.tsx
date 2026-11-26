@@ -11,7 +11,6 @@ import {
   ArrowLeft,
   Mail,
   Phone,
-  Building2,
   Calendar,
   Clock,
   CreditCard,
@@ -39,7 +38,7 @@ export default function EmployeeDetailsPage() {
 
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'attendance' | 'leaves' | 'payroll'>('overview');
+  const [activeTab, setActiveTab] = useState<'attendance' | 'leaves' | 'payroll'>('attendance');
 
   // Security guard: Only Managers can view other staff's full profile
   useEffect(() => {
@@ -177,11 +176,6 @@ export default function EmployeeDetailsPage() {
                   </div>
                   <span>•</span>
                   <div className="flex items-center gap-1.5">
-                    <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                    <span>{emp.department?.name || 'General Operations'}</span>
-                  </div>
-                  <span>•</span>
-                  <div className="flex items-center gap-1.5">
                     <Calendar className="w-3.5 h-3.5 text-slate-400" />
                     <span>Joined {formatDate(emp.dateOfJoining)}</span>
                   </div>
@@ -239,7 +233,7 @@ export default function EmployeeDetailsPage() {
 
           <div className="bg-white p-4 rounded-xl border border-[#EAECF0] shadow-subtle">
             <span className="text-[11px] font-medium text-[#717680] block mb-1">Disbursed Payslips</span>
-            <div className="text-lg font-bold text-[#181D27]">{emp.payslips?.length ?? 0} Vouchers</div>
+            <div className="text-lg font-bold text-[#181D27]">{emp.payslips?.length ?? 0} Payslips</div>
             <span className="text-[11px] text-[#2D7A58] mt-1 block">
               Latest: {emp.payslips?.[0] ? `${monthNames[emp.payslips[0].month - 1]} ${emp.payslips[0].year}` : 'N/A'}
             </span>
@@ -248,16 +242,6 @@ export default function EmployeeDetailsPage() {
 
         {/* Tab Navigation Ribbon */}
         <div className="flex border-b border-[#EAECF0] bg-white rounded-xl p-1 shadow-subtle">
-          <button
-            onClick={() => setActiveTab('overview')}
-            className={`flex-1 py-2.5 px-4 rounded-lg text-xs font-semibold transition-all cursor-pointer text-center ${
-              activeTab === 'overview'
-                ? 'bg-[#EAF6ED] text-[#2D7A58] shadow-xs'
-                : 'text-[#535862] hover:text-[#181D27] hover:bg-slate-50'
-            }`}
-          >
-            Overview & Career
-          </button>
           <button
             onClick={() => setActiveTab('attendance')}
             className={`flex-1 py-2.5 px-4 rounded-lg text-xs font-semibold transition-all cursor-pointer text-center ${
@@ -291,135 +275,7 @@ export default function EmployeeDetailsPage() {
         </div>
 
         {/* ========================================================================= */}
-        {/* TAB 1: OVERVIEW & CAREER DETAILS                                          */}
-        {/* ========================================================================= */}
-        {activeTab === 'overview' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Personal & Contact Details */}
-            <div className="bg-white rounded-2xl border border-[#EAECF0] p-6 shadow-subtle space-y-4">
-              <h3 className="text-sm font-bold text-[#181D27] pb-3 border-b border-[#EAECF0]">
-                Contact & Account Information
-              </h3>
-
-              <div className="space-y-3.5 text-xs">
-                <div className="flex items-center justify-between py-1 border-b border-slate-50">
-                  <span className="text-[#717680] flex items-center gap-2">
-                    <Mail className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Work Email Address:</span>
-                  </span>
-                  <span className="font-semibold text-[#181D27]">{emp.user?.email || 'N/A'}</span>
-                </div>
-
-                <div className="flex items-center justify-between py-1 border-b border-slate-50">
-                  <span className="text-[#717680] flex items-center gap-2">
-                    <Phone className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Mobile Phone Number:</span>
-                  </span>
-                  <span className="font-semibold font-mono text-[#181D27]">{emp.phone || 'N/A'}</span>
-                </div>
-
-                <div className="flex items-center justify-between py-1 border-b border-slate-50">
-                  <span className="text-[#717680] flex items-center gap-2">
-                    <ShieldCheck className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Account Status:</span>
-                  </span>
-                  <span className="font-semibold text-emerald-700">
-                    {emp.user?.isActive ? 'Active & Verified' : 'Disabled'}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between py-1 border-b border-slate-50">
-                  <span className="text-[#717680] flex items-center gap-2">
-                    <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Account Created:</span>
-                  </span>
-                  <span className="text-[#181D27]">{formatDate(emp.user?.createdAt)}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Job & Organization Structure */}
-            <div className="bg-white rounded-2xl border border-[#EAECF0] p-6 shadow-subtle space-y-4">
-              <h3 className="text-sm font-bold text-[#181D27] pb-3 border-b border-[#EAECF0]">
-                Organizational Hierarchy
-              </h3>
-
-              <div className="space-y-4 text-xs">
-                {/* Reporting Manager */}
-                <div>
-                  <span className="text-[11px] font-semibold text-[#717680] block mb-1.5 uppercase tracking-wider">
-                    Direct Reporting Manager
-                  </span>
-                  {emp.manager ? (
-                    <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-[#EAECF0]">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-[#EAF6ED] text-[#2D7A58] flex items-center justify-center font-bold text-xs">
-                          {emp.manager.firstName[0]}
-                        </div>
-                        <div>
-                          <span className="font-bold text-[#181D27] block">
-                            {emp.manager.firstName} {emp.manager.lastName}
-                          </span>
-                          <span className="text-[11px] text-[#717680] block">
-                            {emp.manager.designation || 'Operations Manager'}
-                          </span>
-                        </div>
-                      </div>
-                      <Link
-                        href={`/employees/${emp.manager.id}`}
-                        className="text-[11px] text-[#2D7A58] font-semibold hover:underline flex items-center gap-1"
-                      >
-                        <span>View</span>
-                        <ChevronRight className="w-3 h-3" />
-                      </Link>
-                    </div>
-                  ) : (
-                    <div className="p-3 rounded-xl bg-slate-50 border border-[#EAECF0] text-slate-500 text-xs">
-                      No direct manager assigned (Reports to Executive Management).
-                    </div>
-                  )}
-                </div>
-
-                {/* Subordinates */}
-                <div>
-                  <span className="text-[11px] font-semibold text-[#717680] block mb-1.5 uppercase tracking-wider">
-                    Direct Subordinates ({emp.subordinates?.length ?? 0})
-                  </span>
-                  {emp.subordinates && emp.subordinates.length > 0 ? (
-                    <div className="space-y-1.5 max-h-36 overflow-y-auto">
-                      {emp.subordinates.map((sub: any) => (
-                        <div
-                          key={sub.id}
-                          className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-200"
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-[#2D7A58]" />
-                            <span className="font-semibold text-[#181D27]">
-                              {sub.firstName} {sub.lastName}
-                            </span>
-                            <span className="text-slate-400">•</span>
-                            <span className="text-slate-500">{sub.designation}</span>
-                          </div>
-                          <Link
-                            href={`/employees/${sub.id}`}
-                            className="text-[11px] text-[#2D7A58] font-semibold hover:underline"
-                          >
-                            Profile &rarr;
-                          </Link>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-slate-400 text-xs italic">No direct team members report to this role.</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ========================================================================= */}
-        {/* TAB 2: ATTENDANCE HISTORY (LAST 30 DAYS)                                  */}
+        {/* TAB 1: ATTENDANCE HISTORY (LAST 30 DAYS)                                  */}
         {/* ========================================================================= */}
         {activeTab === 'attendance' && (
           <div className="space-y-6">
@@ -663,7 +519,7 @@ export default function EmployeeDetailsPage() {
             <div className="bg-white rounded-2xl border border-[#EAECF0] shadow-subtle overflow-hidden">
               <div className="p-4 border-b border-[#EAECF0] flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-bold text-[#181D27]">Generated Payslips & Salary Vouchers</h3>
+                  <h3 className="text-sm font-bold text-[#181D27]">Generated Payslips</h3>
                   <p className="text-[11px] text-[#717680]">Official downloadable salary statements for this employee</p>
                 </div>
               </div>
@@ -678,14 +534,14 @@ export default function EmployeeDetailsPage() {
                       <th className="py-3 px-4">Deductions</th>
                       <th className="py-3 px-4">Net Salary</th>
                       <th className="py-3 px-4">Status</th>
-                      <th className="py-3 px-4 text-right">PDF Voucher</th>
+                      <th className="py-3 px-4 text-right">PDF Payslip</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#EAECF0]">
                     {emp.payslips?.length === 0 ? (
                       <tr>
                         <td colSpan={7} className="py-8 text-center text-slate-400">
-                          No payroll vouchers processed yet for this employee.
+                          No payslips processed yet for this employee.
                         </td>
                       </tr>
                     ) : (

@@ -5,7 +5,7 @@ export function middleware(request: NextRequest) {
   const token = request.cookies.get('lp_hrms_token')?.value;
   const { pathname } = request.nextUrl;
 
-  const protectedRoutes = ['/dashboard', '/employees', '/departments', '/attendance', '/leaves', '/payroll'];
+  const protectedRoutes = ['/dashboard', '/employees', '/attendance', '/leaves', '/payroll'];
 
   const isProtected = protectedRoutes.some((route) => pathname.startsWith(route));
 
@@ -20,7 +20,7 @@ export function middleware(request: NextRequest) {
   }
 
   // Prevent Employee role from accessing staff management pages
-  if (token && (pathname.startsWith('/employees') || pathname.startsWith('/departments'))) {
+  if (token && pathname.startsWith('/employees')) {
     try {
       const payloadBase64 = token.split('.')[1];
       if (payloadBase64) {
@@ -39,6 +39,6 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/employees/:path*', '/departments/:path*', '/attendance/:path*', '/leaves/:path*', '/payroll/:path*', '/login'],
+  matcher: ['/dashboard/:path*', '/employees/:path*', '/attendance/:path*', '/leaves/:path*', '/payroll/:path*', '/login'],
 };
 

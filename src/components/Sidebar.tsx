@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
@@ -9,8 +8,6 @@ import {
   Clock, 
   CalendarDays, 
   CreditCard, 
-  ChevronDown,
-  ChevronUp,
   LogOut,
   X
 } from 'lucide-react';
@@ -32,7 +29,6 @@ interface SidebarProps {
 
 export function Sidebar({ user, onCloseMobile }: SidebarProps) {
   const pathname = usePathname();
-  const [staffOpen, setStaffOpen] = useState(true);
 
   const displayName = user?.employee
     ? `${user.employee.firstName} ${user.employee.lastName}`
@@ -158,60 +154,19 @@ export function Sidebar({ user, onCloseMobile }: SidebarProps) {
             </div>
 
             <div className="mt-1 space-y-0.5">
-              <div>
-                <button
-                  type="button"
-                  onClick={() => setStaffOpen(!staffOpen)}
-                  className={cn(
-                    'w-full flex items-center justify-between px-2.5 py-2 rounded-lg font-medium text-[13px] transition-colors',
-                    pathname === '/employees' || pathname === '/departments'
-                      ? 'text-[#181D27] font-semibold'
-                      : 'text-[#535862] hover:bg-[#FAFBFB] hover:text-[#181D27]'
-                  )}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Users className="w-4 h-4 text-[#717680]" />
-                    <span>Manage Staff</span>
-                  </div>
-                  {staffOpen ? (
-                    <ChevronUp className="w-3.5 h-3.5 text-slate-400" />
-                  ) : (
-                    <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-                  )}
-                </button>
-
-                {staffOpen && (
-                  <div className="mt-0.5 space-y-0.5 pl-4">
-                    <Link
-                      href="/employees"
-                      onClick={onCloseMobile}
-                      className={cn(
-                        'flex items-center gap-2 py-1.5 px-2.5 rounded-lg text-[13px] transition-colors',
-                        pathname === '/employees'
-                          ? 'text-[#181D27] font-semibold bg-[#F4F6F5]'
-                          : 'text-[#717680] hover:text-[#181D27] hover:bg-[#FAFBFB]'
-                      )}
-                    >
-                      <span className="text-slate-400 text-xs font-mono">└</span>
-                      <span>Staff Directory</span>
-                    </Link>
-
-                    <Link
-                      href="/departments"
-                      onClick={onCloseMobile}
-                      className={cn(
-                        'flex items-center gap-2 py-1.5 px-2.5 rounded-lg text-[13px] transition-colors',
-                        pathname === '/departments'
-                          ? 'text-[#181D27] font-semibold bg-[#F4F6F5]'
-                          : 'text-[#717680] hover:text-[#181D27] hover:bg-[#FAFBFB]'
-                      )}
-                    >
-                      <span className="text-slate-400 text-xs font-mono">└</span>
-                      <span>Departments</span>
-                    </Link>
-                  </div>
+              <Link
+                href="/employees"
+                onClick={onCloseMobile}
+                className={cn(
+                  'flex items-center gap-2.5 px-2.5 py-2 rounded-lg font-medium text-[13px] transition-colors',
+                  pathname.startsWith('/employees')
+                    ? 'bg-[#F4F6F5] text-[#181D27] font-semibold'
+                    : 'text-[#535862] hover:bg-[#FAFBFB] hover:text-[#181D27]'
                 )}
-              </div>
+              >
+                <Users className="w-4 h-4 text-[#717680]" />
+                <span>Staff Directory</span>
+              </Link>
             </div>
           </div>
         )}

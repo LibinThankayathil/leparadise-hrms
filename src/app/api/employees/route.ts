@@ -15,7 +15,6 @@ const createEmployeeSchema = z.object({
   firstName: z.string().min(1),
   lastName: z.string().min(1),
   phone: z.string().optional(),
-  departmentId: z.string().optional(),
   designation: z.string().min(1),
   managerId: z.string().optional(),
   baseSalary: z.number().min(0).default(0),
@@ -33,14 +32,9 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search') || '';
-    const departmentId = searchParams.get('departmentId');
     const status = searchParams.get('status') as EmploymentStatus | null;
 
     const where: any = {};
-
-    if (departmentId) {
-      where.departmentId = departmentId;
-    }
 
     if (status) {
       where.status = status;
@@ -60,7 +54,6 @@ export async function GET(request: Request) {
       where,
       include: {
         user: { select: { email: true, role: true, isActive: true } },
-        department: { select: { id: true, name: true } },
         manager: { select: { id: true, firstName: true, lastName: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -118,14 +111,12 @@ export async function POST(request: Request) {
           firstName: data.firstName,
           lastName: data.lastName,
           phone: data.phone,
-          departmentId: data.departmentId || null,
           designation: data.designation,
           managerId: data.managerId || null,
           baseSalary: data.baseSalary,
         },
         include: {
           user: { select: { email: true, role: true } },
-          department: true,
         },
       });
 

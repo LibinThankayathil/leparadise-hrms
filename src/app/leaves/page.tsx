@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/DashboardLayout';
-import { InlineLoader } from '@/components/LoadingScreen';
 import { useAuth } from '@/context/AuthContext';
 import { Permissions } from '@/lib/permissions';
 import { CalendarDays, X } from 'lucide-react';
@@ -124,7 +123,20 @@ export default function LeavesPage() {
         </div>
 
         {/* Leave Balances Grid - Responsive (Employees only) */}
-        {isStaff && balances.length > 0 && (
+        {isStaff && loading ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 animate-pulse" aria-busy="true" aria-label="Loading leave balances">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={`skel-bal-${i}`} className="bg-white p-4 rounded-xl border border-[#EAECF0] shadow-subtle space-y-2.5">
+                <div className="h-3 w-20 rounded bg-slate-200" />
+                <div className="flex items-baseline gap-2">
+                  <div className="h-7 w-8 rounded bg-slate-200" />
+                  <div className="h-3 w-16 rounded bg-slate-100" />
+                </div>
+                <div className="w-full bg-slate-100 rounded-full h-1" />
+              </div>
+            ))}
+          </div>
+        ) : isStaff && balances.length > 0 && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {balances.map((b) => {
               const remaining = b.totalDays - b.usedDays;
@@ -181,11 +193,31 @@ export default function LeavesPage() {
               </thead>
               <tbody className="divide-y divide-[#EAECF0] text-[#181D27]">
                 {loading ? (
-                  <tr>
-                    <td colSpan={(!isStaff ? 1 : 0) + 5 + (canReview ? 1 : 0)} className="py-8">
-                      <InlineLoader message="Loading leave inquiries..." />
-                    </td>
-                  </tr>
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <tr key={`skel-leave-${i}`} className="animate-pulse">
+                      {!isStaff && (
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-7 h-7 rounded-full bg-slate-200 shrink-0" />
+                            <div className="h-3.5 w-28 rounded bg-slate-200" />
+                          </div>
+                        </td>
+                      )}
+                      <td className="py-3 px-4"><div className="h-3.5 w-24 rounded bg-slate-200" /></td>
+                      <td className="py-3 px-4"><div className="h-3.5 w-36 rounded bg-slate-100" /></td>
+                      <td className="py-3 px-4"><div className="h-3.5 w-8 rounded bg-slate-200" /></td>
+                      <td className="py-3 px-4"><div className="h-3.5 w-40 rounded bg-slate-100" /></td>
+                      <td className="py-3 px-4"><div className="h-5 w-20 rounded-full bg-slate-200" /></td>
+                      {canReview && (
+                        <td className="py-3 px-4 text-right">
+                          <div className="inline-flex items-center gap-1.5">
+                            <div className="h-6 w-16 rounded-lg bg-slate-100" />
+                            <div className="h-6 w-14 rounded-lg bg-slate-100" />
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  ))
                 ) : requests.length === 0 ? (
                   <tr>
                     <td colSpan={(!isStaff ? 1 : 0) + 5 + (canReview ? 1 : 0)} className="py-12 text-center text-slate-400 text-xs">
