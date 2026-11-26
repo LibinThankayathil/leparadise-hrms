@@ -193,31 +193,38 @@ export default function LeavesPage() {
               </thead>
               <tbody className="divide-y divide-[#EAECF0] text-[#181D27]">
                 {loading ? (
-                  Array.from({ length: 5 }).map((_, i) => (
-                    <tr key={`skel-leave-${i}`} className="animate-pulse">
-                      {!isStaff && (
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-7 h-7 rounded-full bg-slate-200 shrink-0" />
-                            <div className="h-3.5 w-28 rounded bg-slate-200" />
-                          </div>
-                        </td>
-                      )}
-                      <td className="py-3 px-4"><div className="h-3.5 w-24 rounded bg-slate-200" /></td>
-                      <td className="py-3 px-4"><div className="h-3.5 w-36 rounded bg-slate-100" /></td>
-                      <td className="py-3 px-4"><div className="h-3.5 w-8 rounded bg-slate-200" /></td>
-                      <td className="py-3 px-4"><div className="h-3.5 w-40 rounded bg-slate-100" /></td>
-                      <td className="py-3 px-4"><div className="h-5 w-20 rounded-full bg-slate-200" /></td>
-                      {canReview && (
-                        <td className="py-3 px-4 text-right">
-                          <div className="inline-flex items-center gap-1.5">
-                            <div className="h-6 w-16 rounded-lg bg-slate-100" />
-                            <div className="h-6 w-14 rounded-lg bg-slate-100" />
-                          </div>
-                        </td>
-                      )}
+                  <>
+                    <tr role="status" className="sr-only">
+                      <td colSpan={(!isStaff ? 1 : 0) + 5 + (canReview ? 1 : 0)}>
+                        Loading leave requests...
+                      </td>
                     </tr>
-                  ))
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <tr key={`skel-leave-${i}`} aria-hidden="true" className="animate-pulse">
+                        {!isStaff && (
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-7 h-7 rounded-full bg-slate-200 shrink-0" />
+                              <div className="h-3.5 w-28 rounded bg-slate-200" />
+                            </div>
+                          </td>
+                        )}
+                        <td className="py-3 px-4"><div className="h-3.5 w-24 rounded bg-slate-200" /></td>
+                        <td className="py-3 px-4"><div className="h-3.5 w-36 rounded bg-slate-100" /></td>
+                        <td className="py-3 px-4"><div className="h-3.5 w-8 rounded bg-slate-200" /></td>
+                        <td className="py-3 px-4"><div className="h-3.5 w-40 rounded bg-slate-100" /></td>
+                        <td className="py-3 px-4"><div className="h-5 w-20 rounded-full bg-slate-200" /></td>
+                        {canReview && (
+                          <td className="py-3 px-4 text-right">
+                            <div className="inline-flex items-center gap-1.5">
+                              <div className="h-6 w-16 rounded-lg bg-slate-100" />
+                              <div className="h-6 w-14 rounded-lg bg-slate-100" />
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </>
                 ) : requests.length === 0 ? (
                   <tr>
                     <td colSpan={(!isStaff ? 1 : 0) + 5 + (canReview ? 1 : 0)} className="py-12 text-center text-slate-400 text-xs">

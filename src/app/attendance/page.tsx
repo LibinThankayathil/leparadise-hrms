@@ -151,10 +151,10 @@ export default function AttendancePage() {
     const check = new Date(y, m - 1, d, 12, 0, 0, 0);
 
     for (const l of approvedLeaves) {
-      const s = new Date(l.startDate);
-      s.setHours(0, 0, 0, 0);
-      const e = new Date(l.endDate);
-      e.setHours(23, 59, 59, 999);
+      const sRaw = new Date(l.startDate);
+      const s = new Date(sRaw.getUTCFullYear(), sRaw.getUTCMonth(), sRaw.getUTCDate(), 0, 0, 0, 0);
+      const eRaw = new Date(l.endDate);
+      const e = new Date(eRaw.getUTCFullYear(), eRaw.getUTCMonth(), eRaw.getUTCDate(), 23, 59, 59, 999);
       if (check >= s && check <= e) {
         return l;
       }
