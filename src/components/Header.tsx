@@ -23,8 +23,6 @@ export function Header({ onActionClick, actionLabel = '+ Add New Staff', onToggl
         return { section: 'Daily Operation', current: 'Dashboard' };
       case '/employees':
         return { section: 'Manage Staff', current: 'Staff Directory' };
-      case '/departments':
-        return { section: 'Manage Staff', current: 'Departments' };
       case '/attendance':
         return { section: 'Daily Operation', current: 'Attendance Logs' };
       case '/leaves':

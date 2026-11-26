@@ -6,12 +6,9 @@ import { DashboardLayout } from '@/components/DashboardLayout';
 import { useAuth } from '@/context/AuthContext';
 import { 
   Users, 
-  Building2, 
   Clock, 
   CalendarCheck, 
-  Clock4,
   ChevronRight,
-  LayoutDashboard,
   Timer,
   UserCheck,
   Sun,
@@ -107,49 +104,50 @@ export default function DashboardPage() {
   return (
     <DashboardLayout actionLabel="Daily Operations">
       <div className="space-y-6">
-        {/* Greeting Banner — all roles */}
-        <div className="flex items-center gap-3 px-5 py-4 rounded-xl bg-gradient-to-r from-[#EAF6ED] to-white border border-[#D1EBD9] shadow-subtle">
-          <div className="w-9 h-9 rounded-full bg-[#2D7A58]/10 flex items-center justify-center shrink-0">
-            <GreetingIcon className="w-4.5 h-4.5 text-[#2D7A58]" />
-          </div>
-          <div>
-            <p className="text-base font-bold text-[#181D27] leading-tight">
-              {greeting}, {firstName}! 👋
-            </p>
-            <p className="text-xs text-[#717680] mt-0.5">
-              {currentTime.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-            </p>
-          </div>
-        </div>
-
-        {/* Title Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-xl bg-[#252B37] flex items-center justify-center text-white shadow-sm shrink-0">
-              <LayoutDashboard className="w-5 h-5 text-white" />
+        {/* Hero Greeting Header */}
+        <div className="relative overflow-hidden rounded-2xl border border-[#EAECF0] bg-gradient-to-br from-[#EAF6ED]/75 via-white to-[#FAFBFB] p-5 sm:p-6 shadow-subtle">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start sm:items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-[#2D7A58] text-white flex items-center justify-center shadow-sm shrink-0">
+                <GreetingIcon className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-[#2D7A58] bg-[#EAF6ED] border border-[#D1EBD9] px-2 py-0.5 rounded-full">
+                    {isStaff ? 'Staff Portal' : 'Manager Overview'}
+                  </span>
+                  {user?.employee?.designation && (
+                    <span className="text-[11px] font-medium text-[#717680] hidden sm:inline">
+                      &bull; {user.employee.designation}
+                    </span>
+                  )}
+                </div>
+                <h1 className="text-xl sm:text-2xl font-bold text-[#181D27] tracking-tight leading-snug">
+                  {greeting}, {firstName}
+                </h1>
+                <p className="text-xs text-[#717680] mt-0.5">
+                  {isStaff
+                    ? 'Your shift status, attendance timeline, and pending requests'
+                    : 'Real-time workspace statistics and attendance activity'}
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-[#181D27] tracking-tight">
-                {isStaff ? 'My Dashboard' : 'Dashboard Overview'}
-              </h1>
-              <p className="text-xs text-[#717680] font-normal mt-0.5">
-                {isStaff
-                  ? 'Your shift status, attendance timeline, and pending requests'
-                  : 'Real-time workspace statistics, attendance activity, and department status'}
-              </p>
-            </div>
-          </div>
 
-          <div className="inline-flex items-center gap-2 bg-[#FAFBFB] px-3.5 py-1.5 rounded-lg border border-[#EAECF0] shadow-subtle text-xs font-medium text-[#535862] w-fit">
-            <Clock4 className="w-3.5 h-3.5 text-[#2D7A58] animate-pulse" />
-            <span>
-              {currentTime.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} • {currentTime.toLocaleTimeString()}
-            </span>
+            <div className="inline-flex items-center gap-2.5 bg-white px-3.5 py-2 rounded-xl border border-[#EAECF0] shadow-subtle text-xs font-medium text-[#535862] w-fit shrink-0">
+              <span className="w-2 h-2 rounded-full bg-[#2D7A58] animate-pulse shrink-0" />
+              <span>
+                {currentTime.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+              </span>
+              <span className="text-slate-300">|</span>
+              <span className="font-mono font-semibold text-[#181D27] tabular-nums">
+                {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </span>
+            </div>
           </div>
         </div>
 
         {/* Metric Cards Grid - Responsive */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className={`grid grid-cols-1 sm:grid-cols-2 ${isStaff ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-4`}>
           {isStaff ? (
             <>
               {/* Staff Card 1: My Shift Today */}
@@ -264,18 +262,6 @@ export default function DashboardPage() {
                 </div>
                 <div className="w-10 h-10 rounded-lg bg-[#FEF6EE] text-[#B93815] flex items-center justify-center border border-[#F9DBAF]">
                   <CalendarCheck className="w-5 h-5" />
-                </div>
-              </div>
-
-              {/* Manager Card 4 */}
-              <div className="bg-white p-5 rounded-xl border border-[#EAECF0] shadow-subtle flex items-center justify-between">
-                <div>
-                  <p className="text-[11px] font-semibold text-[#717680] uppercase tracking-wider">Departments</p>
-                  <h3 className="text-2xl font-bold text-[#181D27] mt-1">{stats?.totalDepartments ?? '5'}</h3>
-                  <p className="text-[11px] text-[#2D7A58] font-medium mt-1">Hotel Divisions</p>
-                </div>
-                <div className="w-10 h-10 rounded-lg bg-[#EAF6ED] text-[#2D7A58] flex items-center justify-center border border-[#D1EBD9]">
-                  <Building2 className="w-5 h-5" />
                 </div>
               </div>
             </>

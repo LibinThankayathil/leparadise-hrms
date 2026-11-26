@@ -6,10 +6,6 @@ export const Permissions = {
   canEditStaff: (role?: string | null): boolean => role === 'MANAGER',
   canDeleteStaff: (role?: string | null): boolean => role === 'MANAGER',
 
-  // Departments
-  canAddDepartment: (role?: string | null): boolean => role === 'MANAGER',
-  canEditDepartment: (role?: string | null): boolean => role === 'MANAGER',
-
   // Leaves
   canReviewLeaves: (role?: string | null): boolean => role === 'MANAGER',
   canApplyLeave: (_role?: string | null): boolean => true,

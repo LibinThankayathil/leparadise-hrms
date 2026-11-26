@@ -37,7 +37,6 @@ export async function GET(request: Request) {
             employeeCode: true,
             firstName: true,
             lastName: true,
-            department: { select: { name: true } },
           },
         },
         leaveType: true,

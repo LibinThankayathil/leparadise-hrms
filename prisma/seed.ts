@@ -6,27 +6,7 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Starting Le Paradise HRMS database seeding...');
 
-  // 1. Seed Departments
-  const deptData = [
-    { name: 'Human Resources', description: 'People operations, recruiting, and company culture' },
-    { name: 'Engineering & IT', description: 'Software engineering, infrastructure, and technical support' },
-    { name: 'Hospitality & Guest Relations', description: 'Front desk, customer experience, and concierge' },
-    { name: 'Finance & Accounting', description: 'Financial planning, payroll, and bookkeeping' },
-    { name: 'Operations & Maintenance', description: 'Facilities, housekeeping, and logistics operations' },
-  ];
-
-  const departments: Record<string, string> = {};
-  for (const dept of deptData) {
-    const created = await prisma.department.upsert({
-      where: { name: dept.name },
-      update: {},
-      create: dept,
-    });
-    departments[dept.name] = created.id;
-  }
-  console.log(`✅ Seeded ${Object.keys(departments).length} departments`);
-
-  // 2. Seed Leave Types
+  // 1. Seed Leave Types
   const leaveTypesData = [
     { name: 'Annual Leave', code: 'ANNUAL', defaultDays: 14 },
     { name: 'Sick Leave', code: 'SICK', defaultDays: 10 },
@@ -45,7 +25,7 @@ async function main() {
   }
   console.log(`✅ Seeded ${leaveTypesData.length} leave types`);
 
-  // 3. Seed Users & Employees
+  // 2. Seed Users & Employees
   const defaultPassword = await bcrypt.hash('Manager@123', 10);
   const staffPassword = await bcrypt.hash('Employee@123', 10);
 
@@ -64,7 +44,6 @@ async function main() {
           firstName: 'Sophia',
           lastName: 'Chen',
           phone: '+1 555-0101',
-          departmentId: departments['Human Resources'],
           designation: 'General Manager & HR Operations',
           status: EmploymentStatus.ACTIVE,
           baseSalary: 96000.0,
@@ -90,7 +69,6 @@ async function main() {
           firstName: 'Liam',
           lastName: 'Johnson',
           phone: '+1 555-0102',
-          departmentId: departments['Hospitality & Guest Relations'],
           designation: 'Front Desk Lead Concierge',
           managerId: managerUser.employee?.id,
           status: EmploymentStatus.ACTIVE,
@@ -109,7 +87,6 @@ async function main() {
       firstName: 'Isabella',
       lastName: 'Rossi',
       code: 'LP-EMP-003',
-      dept: 'Hospitality & Guest Relations',
       designation: 'Guest Relations Executive',
       phone: '+1 555-0103',
       salary: 58000.0,
@@ -120,7 +97,6 @@ async function main() {
       firstName: 'David',
       lastName: 'Miller',
       code: 'LP-EMP-004',
-      dept: 'Finance & Accounting',
       designation: 'Senior Financial Analyst',
       phone: '+1 555-0104',
       salary: 78000.0,
@@ -131,7 +107,6 @@ async function main() {
       firstName: 'Maya',
       lastName: 'Patel',
       code: 'LP-EMP-005',
-      dept: 'Engineering & IT',
       designation: 'Systems Infrastructure Engineer',
       phone: '+1 555-0105',
       salary: 82000.0,
@@ -142,7 +117,6 @@ async function main() {
       firstName: 'Lucas',
       lastName: 'Silva',
       code: 'LP-EMP-006',
-      dept: 'Operations & Maintenance',
       designation: 'Facilities Operations Manager',
       phone: '+1 555-0106',
       salary: 68000.0,
@@ -153,7 +127,6 @@ async function main() {
       firstName: 'Elena',
       lastName: 'Rostova',
       code: 'LP-EMP-007',
-      dept: 'Hospitality & Guest Relations',
       designation: 'VIP Concierge & Experience Host',
       phone: '+1 555-0107',
       salary: 54000.0,
@@ -164,7 +137,6 @@ async function main() {
       firstName: 'Marcus',
       lastName: 'Vance',
       code: 'LP-EMP-008',
-      dept: 'Operations & Maintenance',
       designation: 'HVAC & Electrical Specialist',
       phone: '+1 555-0108',
       salary: 60000.0,
@@ -187,7 +159,6 @@ async function main() {
             firstName: staff.firstName,
             lastName: staff.lastName,
             phone: staff.phone,
-            departmentId: departments[staff.dept],
             designation: staff.designation,
             managerId: managerUser.employee?.id,
             status: staff.status,

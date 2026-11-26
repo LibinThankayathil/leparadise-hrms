@@ -43,7 +43,6 @@ export async function GET(request: Request) {
             firstName: true,
             lastName: true,
             designation: true,
-            department: { select: { name: true } },
           },
         },
       },

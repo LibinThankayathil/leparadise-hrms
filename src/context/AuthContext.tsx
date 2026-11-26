@@ -13,7 +13,6 @@ interface User {
     firstName: string;
     lastName: string;
     designation: string;
-    department?: { id: string; name: string };
   } | null;
 }
 

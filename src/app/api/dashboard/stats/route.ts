@@ -25,14 +25,12 @@ export async function GET(request: Request) {
       // Employee-specific dashboard stats
       const [
         totalEmployees,
-        totalDepartments,
         myAttendanceToday,
         myPendingLeavesCount,
         myRecentLeaves,
         monthRecords,
       ] = await Promise.all([
         prisma.employee.count({ where: { status: EmploymentStatus.ACTIVE } }),
-        prisma.department.count(),
         session.employeeId
           ? prisma.attendanceRecord.findFirst({
               where: { employeeId: session.employeeId, date: today },
@@ -72,7 +70,6 @@ export async function GET(request: Request) {
 
       return NextResponse.json({
         totalEmployees,
-        totalDepartments,
         todayAttendanceCount: myAttendanceToday?.clockIn ? 1 : 0,
         pendingLeavesCount: myPendingLeavesCount,
         recentLeaves: myRecentLeaves,
@@ -90,13 +87,11 @@ export async function GET(request: Request) {
     // Manager resort-wide stats
     const [
       totalEmployees,
-      totalDepartments,
       todayAttendanceCount,
       pendingLeavesCount,
       recentLeaves,
     ] = await Promise.all([
       prisma.employee.count({ where: { status: EmploymentStatus.ACTIVE } }),
-      prisma.department.count(),
       prisma.attendanceRecord.count({ where: { date: today } }),
       prisma.leaveRequest.count({ where: { status: LeaveStatus.PENDING } }),
       prisma.leaveRequest.findMany({
@@ -111,7 +106,6 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       totalEmployees,
-      totalDepartments,
       todayAttendanceCount,
       pendingLeavesCount,
       recentLeaves,
