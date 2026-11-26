@@ -9,7 +9,6 @@ import {
   CreditCard, 
   Printer, 
   X, 
-  FileText,
   ChevronDown
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
@@ -148,13 +147,6 @@ export default function PayrollPage() {
             </div>
           </div>
 
-          <button
-            onClick={() => window.print()}
-            className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-[#EAECF0] hover:border-slate-300 text-[#344054] rounded-lg text-[13px] font-medium shadow-subtle cursor-pointer w-fit"
-          >
-            <FileText className="w-3.5 h-3.5 text-slate-400" />
-            <span>Export Statement</span>
-          </button>
         </div>
 
         {/* Payslips Table */}

@@ -33,6 +33,7 @@ export async function GET(request: Request) {
       targetEmployeeId = employeeIdParam;
     }
 
+    let hasValidDateFilter = false;
     if (month && year) {
       const m = parseInt(month, 10);
       const y = parseInt(year, 10);
@@ -43,8 +44,17 @@ export async function GET(request: Request) {
         lte: endOfMonth,
       };
     } else if (dateStr) {
-      const targetDate = new Date(dateStr);
-      where.date = targetDate;
+      const parts = dateStr.split('-').map(Number);
+      if (parts.length === 3 && parts.every((n) => !Number.isNaN(n))) {
+        hasValidDateFilter = true;
+        const [y, m, d] = parts;
+        const startOfDay = new Date(y, m - 1, d, 0, 0, 0, 0);
+        const endOfDay = new Date(y, m - 1, d, 23, 59, 59, 999);
+        where.date = {
+          gte: startOfDay,
+          lte: endOfDay,
+        };
+      }
     }
 
     const records = await prisma.attendanceRecord.findMany({
@@ -60,8 +70,8 @@ export async function GET(request: Request) {
           },
         },
       },
-      orderBy: { date: 'asc' },
-      ...(month && year ? {} : { take: 100 }),
+      orderBy: dateStr ? [{ clockIn: 'asc' }, { employee: { firstName: 'asc' } }] : { date: 'asc' },
+      ...((month && year) || hasValidDateFilter ? {} : { take: 100 }),
     });
 
     // Check today's record for logged-in user

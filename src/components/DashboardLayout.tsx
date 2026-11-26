@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Sidebar } from './Sidebar';
 import { LoadingScreen } from './LoadingScreen';
 import { useAuth } from '@/context/AuthContext';
@@ -15,6 +15,12 @@ interface DashboardLayoutProps {
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const { user, loading } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    const handleOpenSidebar = () => setSidebarOpen(true);
+    window.addEventListener('open-mobile-sidebar', handleOpenSidebar);
+    return () => window.removeEventListener('open-mobile-sidebar', handleOpenSidebar);
+  }, []);
 
   // Only show the animated emblem loader on initial cold boot if user is not yet known
   if (loading && !user) {
@@ -55,7 +61,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           <div className="w-8" />
         </div>
 
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
+        <main className="flex-1 p-4 pb-24 sm:p-6 sm:pb-24 md:pb-8 lg:p-8 overflow-y-auto">
           {children}
         </main>
       </div>

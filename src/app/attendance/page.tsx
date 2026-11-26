@@ -13,22 +13,38 @@ import {
   AlertTriangle, 
   XCircle, 
   Info, 
-  FileText, 
   X, 
   List, 
   Grid, 
-  Loader2,
   CalendarCheck
 } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
+
+function toLocalDateInputValue(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function formatLocalDate(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+}
 
 export default function AttendancePage() {
   const { user } = useAuth();
   const isStaff = user?.role === 'EMPLOYEE';
 
   const today = new Date();
+  const todayStr = toLocalDateInputValue(today);
   const [selectedMonth, setSelectedMonth] = useState(today.getMonth() + 1); // 1-12
   const [selectedYear, setSelectedYear] = useState(today.getFullYear());
+  const [selectedDate, setSelectedDate] = useState(todayStr);
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>(isStaff ? 'calendar' : 'list');
 
   const [reload, setReload] = useState(0);
@@ -37,15 +53,14 @@ export default function AttendancePage() {
     | { key: string; error: true }
     | null
   >(null);
-  const requestKey = JSON.stringify([user?.id, selectedYear, selectedMonth, reload]);
+  const requestKey = JSON.stringify([user?.id, isStaff, selectedYear, selectedMonth, selectedDate, reload]);
   const selectedResult = result?.key === requestKey ? result : null;
   const attendance = selectedResult && 'data' in selectedResult ? selectedResult.data : null;
-  const [records, todayRecord, approvedLeaves] = [
+  const [records, , approvedLeaves] = [
     attendance?.records ?? [], attendance?.todayRecord ?? null, attendance?.approvedLeaves ?? [],
   ] as const;
   const showCalendar = isStaff && viewMode === 'calendar';
   const retryAttendance = () => setReload((count) => count + 1);
-  const [clockLoading, setClockLoading] = useState(false);
   const [time, setTime] = useState(new Date());
 
   // Day detail popover modal
@@ -70,7 +85,10 @@ export default function AttendancePage() {
 
     async function loadAttendance() {
       try {
-        const res = await fetch(`/api/attendance?month=${selectedMonth}&year=${selectedYear}`, {
+        const query = isStaff
+          ? `month=${selectedMonth}&year=${selectedYear}`
+          : `date=${selectedDate}`;
+        const res = await fetch(`/api/attendance?${query}`, {
           signal: controller.signal,
         });
         if (!res.ok) throw new Error(`Attendance request failed: ${res.status}`);
@@ -84,28 +102,12 @@ export default function AttendancePage() {
     setSelectedDayDetail(null);
     void loadAttendance();
     return () => controller.abort();
-  }, [requestKey, selectedMonth, selectedYear, user?.id]);
+  }, [requestKey, isStaff, selectedMonth, selectedYear, selectedDate, user?.id]);
 
-  const handleClock = async (action: 'CLOCK_IN' | 'CLOCK_OUT') => {
-    setClockLoading(true);
-    try {
-      const res = await fetch('/api/attendance', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
-      });
-
-      if (res.ok) {
-        retryAttendance();
-      } else {
-        const d = await res.json();
-        alert(d.error || 'Attendance action failed');
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setClockLoading(false);
-    }
+  const handleShiftDay = (delta: number) => {
+    const [y, m, d] = selectedDate.split('-').map(Number);
+    const next = new Date(y, m - 1, d + delta);
+    setSelectedDate(toLocalDateInputValue(next));
   };
 
   const handlePrevMonth = () => {
@@ -127,16 +129,6 @@ export default function AttendancePage() {
       setSelectedMonth((prev) => prev + 1);
     }
   };
-
-  const handleCurrentMonth = () => {
-    if (selectedMonth === today.getMonth() + 1 && selectedYear === today.getFullYear()) return;
-    retryAttendance();
-    setSelectedMonth(today.getMonth() + 1);
-    setSelectedYear(today.getFullYear());
-  };
-
-  const isClockedIn = !!todayRecord?.clockIn;
-  const isClockedOut = !!todayRecord?.clockOut;
 
   // Month Names and day headers
   const monthNames = [
@@ -250,112 +242,132 @@ export default function AttendancePage() {
             </div>
           </div>
 
-          {/* Quick Punch Action Station */}
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <button
-              type="button"
-              disabled={!attendance || clockLoading || isClockedIn}
-              onClick={() => handleClock('CLOCK_IN')}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#2D7A58] hover:bg-[#256549] text-white font-semibold text-[13px] shadow-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-            >
-              {clockLoading && !isClockedIn ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <CheckCircle2 className="w-3.5 h-3.5" />
-              )}
-              <span>{isClockedIn ? 'Clocked In Today' : '+ Clock In'}</span>
-            </button>
-            <button
-              type="button"
-              disabled={!attendance || clockLoading || !isClockedIn || isClockedOut}
-              onClick={() => handleClock('CLOCK_OUT')}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-white hover:bg-slate-50 text-[#344054] border border-[#EAECF0] font-semibold text-[13px] shadow-subtle transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-            >
-              {clockLoading && isClockedIn && !isClockedOut ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Clock className="w-3.5 h-3.5 text-slate-400" />
-              )}
-              <span>{isClockedOut ? 'Clocked Out' : 'Clock Out'}</span>
-            </button>
-          </div>
+
         </div>
 
-        {/* Top Controls Bar: Month Navigator & View Switcher */}
+        {/* Top Controls Bar: Month Navigator (Staff) / Date Selector (Manager) */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-3.5 bg-white border border-[#EAECF0] rounded-xl shadow-subtle">
-          {/* Month Navigator */}
-          <div className="flex items-center gap-2">
-            <div className="flex items-center border border-[#EAECF0] rounded-lg bg-[#FAFBFB] overflow-hidden">
-              <button
-                type="button"
-                onClick={handlePrevMonth}
-                title="Previous Month"
-                className="p-2 text-[#535862] hover:text-[#181D27] hover:bg-slate-100 transition-colors cursor-pointer"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={handleNextMonth}
-                title="Next Month"
-                className="p-2 text-[#535862] hover:text-[#181D27] hover:bg-slate-100 transition-colors border-l border-[#EAECF0] cursor-pointer"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
+          {isStaff ? (
+            <>
+              {/* Month Navigator */}
+              <div className="flex items-center gap-2">
+                <div className="flex items-center border border-[#EAECF0] rounded-lg bg-[#FAFBFB] overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={handlePrevMonth}
+                    title="Previous Month"
+                    className="p-2 text-[#535862] hover:text-[#181D27] hover:bg-slate-100 transition-colors cursor-pointer"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleNextMonth}
+                    title="Next Month"
+                    className="p-2 text-[#535862] hover:text-[#181D27] hover:bg-slate-100 transition-colors border-l border-[#EAECF0] cursor-pointer"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
 
-            <div className="flex items-center gap-2 ml-1">
-              <span className="text-base font-bold text-[#181D27]">
-                {monthNames[selectedMonth - 1]} {selectedYear}
-              </span>
-              <button
-                type="button"
-                onClick={handleCurrentMonth}
-                className="px-2.5 py-1 text-xs font-semibold text-[#2D7A58] bg-[#EAF6ED] hover:bg-[#D1EBD9] border border-[#D1EBD9] rounded-md transition-colors cursor-pointer"
-              >
-                Today
-              </button>
-            </div>
-          </div>
+                <div className="flex items-center gap-2 ml-1">
+                  <span className="text-base font-bold text-[#181D27]">
+                    {monthNames[selectedMonth - 1]} {selectedYear}
+                  </span>
+                </div>
+              </div>
 
-          {/* Right Tools: View Mode Toggle & Print */}
-          <div className="flex items-center gap-2.5 self-end md:self-auto">
-            {/* View Mode Switcher */}
-            {isStaff && <div className="inline-flex items-center p-0.5 bg-[#F4F6F5] border border-[#EAECF0] rounded-lg text-xs font-semibold">
-              <button
-                type="button"
-                onClick={() => setViewMode('calendar')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all cursor-pointer ${
-                  viewMode === 'calendar'
-                    ? 'bg-white text-[#181D27] shadow-xs'
-                    : 'text-[#717680] hover:text-[#181D27]'
-                }`}
-              >
-                <Grid className="w-3.5 h-3.5" />
-                <span>Calendar</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('list')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all cursor-pointer ${
-                  viewMode === 'list'
-                    ? 'bg-white text-[#181D27] shadow-xs'
-                    : 'text-[#717680] hover:text-[#181D27]'
-                }`}
-              >
-                <List className="w-3.5 h-3.5" />
-                <span>List Table</span>
-              </button>
-            </div>}
+              {/* Right Tools: View Mode Toggle */}
+              <div className="flex items-center gap-2.5 self-end md:self-auto">
+                <div className="inline-flex items-center p-0.5 bg-[#F4F6F5] border border-[#EAECF0] rounded-lg text-xs font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('calendar')}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all cursor-pointer ${
+                      viewMode === 'calendar'
+                        ? 'bg-white text-[#181D27] shadow-xs'
+                        : 'text-[#717680] hover:text-[#181D27]'
+                    }`}
+                  >
+                    <Grid className="w-3.5 h-3.5" />
+                    <span>Calendar</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('list')}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all cursor-pointer ${
+                      viewMode === 'list'
+                        ? 'bg-white text-[#181D27] shadow-xs'
+                        : 'text-[#717680] hover:text-[#181D27]'
+                    }`}
+                  >
+                    <List className="w-3.5 h-3.5" />
+                    <span>List Table</span>
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Manager Daily Date Selector */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center border border-[#EAECF0] rounded-lg bg-[#FAFBFB] overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => handleShiftDay(-1)}
+                    title="Previous Day"
+                    className="p-2 text-[#535862] hover:text-[#181D27] hover:bg-slate-100 transition-colors cursor-pointer"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleShiftDay(1)}
+                    title="Next Day"
+                    className="p-2 text-[#535862] hover:text-[#181D27] hover:bg-slate-100 transition-colors border-l border-[#EAECF0] cursor-pointer"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
 
-            <button
-              onClick={() => window.print()}
-              className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-[#EAECF0] hover:border-slate-300 text-[#344054] rounded-lg text-[13px] font-medium shadow-subtle transition-colors cursor-pointer shrink-0"
-            >
-              <FileText className="w-3.5 h-3.5 text-slate-400" />
-              <span>Export PDF</span>
-            </button>
-          </div>
+                <div className="relative flex items-center">
+                  <CalendarIcon className="w-3.5 h-3.5 text-[#535862] absolute left-3 pointer-events-none" />
+                  <input
+                    type="date"
+                    aria-label="Select attendance date"
+                    value={selectedDate}
+                    onChange={(e) => {
+                      if (e.target.value) setSelectedDate(e.target.value);
+                    }}
+                    className="pl-8 pr-3 py-1.5 bg-[#FAFBFB] border border-[#EAECF0] hover:border-slate-300 rounded-lg text-[13px] font-semibold text-[#181D27] focus:outline-none focus:ring-1 focus:ring-[#2D7A58] cursor-pointer"
+                  />
+                </div>
+
+                {selectedDate !== todayStr && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDate(todayStr)}
+                    className="px-2.5 py-1.5 text-xs font-semibold text-[#2D7A58] bg-[#EAF6ED] hover:bg-[#D1EBD9] border border-[#D1EBD9] rounded-lg transition-colors cursor-pointer"
+                  >
+                    Go to Today
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 text-xs text-[#535862] font-medium self-end md:self-auto">
+                <span>
+                  {selectedDate === todayStr
+                    ? `Today (${formatLocalDate(selectedDate)})`
+                    : formatLocalDate(selectedDate)}
+                </span>
+                {attendance && (
+                  <span className="px-2.5 py-1 rounded-full bg-[#FAFBFB] border border-[#EAECF0] text-[#181D27] font-semibold">
+                    {records.length} {records.length === 1 ? 'record' : 'records'}
+                  </span>
+                )}
+              </div>
+            </>
+          )}
         </div>
 
         {/* Monthly Summary Statistics Cards (Shown on Calendar View) */}
@@ -441,7 +453,7 @@ export default function AttendancePage() {
         {/* Main Content Area */}
         {selectedResult && 'error' in selectedResult ? (
           <div className="py-12 text-center border border-[#EAECF0] rounded-xl bg-white">
-            <p role="alert">Could not load attendance for {monthNames[selectedMonth - 1]} {selectedYear}.</p>
+            <p role="alert">Could not load attendance for {isStaff ? `${monthNames[selectedMonth - 1]} ${selectedYear}` : formatLocalDate(selectedDate)}.</p>
             <button type="button" onClick={retryAttendance} className="mt-3 underline">Retry</button>
           </div>
         ) : !attendance ? (
@@ -632,7 +644,7 @@ export default function AttendancePage() {
                   {records.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="py-12 text-center text-slate-400 text-xs">
-                        No attendance records logged for {monthNames[selectedMonth - 1]} {selectedYear}.
+                        No attendance records logged for {isStaff ? `${monthNames[selectedMonth - 1]} ${selectedYear}` : formatLocalDate(selectedDate)}.
                       </td>
                     </tr>
                   ) : (

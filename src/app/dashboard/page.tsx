@@ -13,7 +13,10 @@ import {
   ChevronRight,
   LayoutDashboard,
   Timer,
-  UserCheck
+  UserCheck,
+  Sun,
+  Sunset,
+  Moon
 } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 
@@ -95,9 +98,30 @@ export default function DashboardPage() {
     elapsedShiftText = `${hrs}h ${mins}m`;
   }
 
+  // Greeting logic
+  const hour = currentTime.getHours();
+  const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
+  const GreetingIcon = hour < 12 ? Sun : hour < 17 ? Sunset : Moon;
+  const firstName = user?.employee?.firstName ?? user?.email?.split('@')[0] ?? 'there';
+
   return (
     <DashboardLayout actionLabel="Daily Operations">
       <div className="space-y-6">
+        {/* Greeting Banner — all roles */}
+        <div className="flex items-center gap-3 px-5 py-4 rounded-xl bg-gradient-to-r from-[#EAF6ED] to-white border border-[#D1EBD9] shadow-subtle">
+          <div className="w-9 h-9 rounded-full bg-[#2D7A58]/10 flex items-center justify-center shrink-0">
+            <GreetingIcon className="w-4.5 h-4.5 text-[#2D7A58]" />
+          </div>
+          <div>
+            <p className="text-base font-bold text-[#181D27] leading-tight">
+              {greeting}, {firstName}! 👋
+            </p>
+            <p className="text-xs text-[#717680] mt-0.5">
+              {currentTime.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            </p>
+          </div>
+        </div>
+
         {/* Title Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3.5">
@@ -106,22 +130,15 @@ export default function DashboardPage() {
             </div>
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-[#181D27] tracking-tight">
-                Dashboard Overview
+                {isStaff ? 'My Dashboard' : 'Dashboard Overview'}
               </h1>
               <p className="text-xs text-[#717680] font-normal mt-0.5">
-                Real-time workspace statistics, attendance activity, and department status
+                {isStaff
+                  ? 'Your shift status, attendance timeline, and pending requests'
+                  : 'Real-time workspace statistics, attendance activity, and department status'}
               </p>
             </div>
           </div>
-
-          {isStaff && (
-            <Link
-              href="/dashboard/self-service"
-              className="text-sm font-semibold text-[#2D7A58] hover:underline"
-            >
-              Employee Self-Service
-            </Link>
-          )}
 
           <div className="inline-flex items-center gap-2 bg-[#FAFBFB] px-3.5 py-1.5 rounded-lg border border-[#EAECF0] shadow-subtle text-xs font-medium text-[#535862] w-fit">
             <Clock4 className="w-3.5 h-3.5 text-[#2D7A58] animate-pulse" />
