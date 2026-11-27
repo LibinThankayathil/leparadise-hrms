@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/DashboardLayout';
-import { InlineLoader } from '@/components/LoadingScreen';
 import { useAuth } from '@/context/AuthContext';
 import { 
   Clock, 
@@ -521,8 +520,41 @@ export default function AttendancePage() {
               </div>
             </div>
           ) : (
-            <div className="py-20 border border-[#EAECF0] rounded-2xl bg-white">
-              <InlineLoader message="Loading attendance records..." />
+            <div className="border border-[#EAECF0] rounded-xl overflow-hidden shadow-subtle bg-white">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-[13px] min-w-[680px]">
+                  <thead>
+                    <tr className="bg-[#FAFBFB] border-b border-[#EAECF0] text-[11px] font-semibold text-[#535862]">
+                      <th className="py-3 px-4">Staff Member</th>
+                      <th className="py-3 px-4">Staff Code</th>
+                      <th className="py-3 px-4">Shift Date</th>
+                      <th className="py-3 px-4">Clock In</th>
+                      <th className="py-3 px-4">Clock Out</th>
+                      <th className="py-3 px-4">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#EAECF0]">
+                    <tr role="status" className="sr-only">
+                      <td colSpan={6}>Loading attendance records...</td>
+                    </tr>
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <tr key={`skel-att-${i}`} aria-hidden="true" className="animate-pulse">
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-7 h-7 rounded-full bg-slate-200 shrink-0" />
+                            <div className="h-3.5 w-28 rounded bg-slate-200" />
+                          </div>
+                        </td>
+                        <td className="py-3 px-4"><div className="h-3.5 w-16 rounded bg-slate-200" /></td>
+                        <td className="py-3 px-4"><div className="h-3.5 w-24 rounded bg-slate-100" /></td>
+                        <td className="py-3 px-4"><div className="h-3.5 w-14 rounded bg-slate-100" /></td>
+                        <td className="py-3 px-4"><div className="h-3.5 w-14 rounded bg-slate-100" /></td>
+                        <td className="py-3 px-4"><div className="h-5 w-16 rounded-full bg-slate-200" /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )
         ) : showCalendar ? (
