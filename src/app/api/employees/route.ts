@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getSession, hashPassword } from '@/lib/auth';
 import { isCurrentManager } from '@/lib/employee-access';
+import { ensureDefaultLeaveType } from '@/lib/leave-policy';
 import { Role, EmploymentStatus } from '@prisma/client';
 import { z } from 'zod';
 
@@ -120,20 +121,18 @@ export async function POST(request: Request) {
         },
       });
 
-      // Initialize default leave balances for current year
-      const leaveTypes = await tx.leaveType.findMany();
+      // Initialize default leave balance for current year
+      const defaultLeaveType = await ensureDefaultLeaveType(tx);
       const currentYear = new Date().getFullYear();
-      for (const lt of leaveTypes) {
-        await tx.leaveBalance.create({
-          data: {
-            employeeId: employee.id,
-            leaveTypeId: lt.id,
-            totalDays: lt.defaultDays,
-            usedDays: 0,
-            year: currentYear,
-          },
-        });
-      }
+      await tx.leaveBalance.create({
+        data: {
+          employeeId: employee.id,
+          leaveTypeId: defaultLeaveType.id,
+          totalDays: defaultLeaveType.defaultDays,
+          usedDays: 0,
+          year: currentYear,
+        },
+      });
 
       return employee;
     });

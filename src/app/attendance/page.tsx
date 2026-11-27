@@ -663,7 +663,7 @@ export default function AttendancePage() {
                     cellClass = 'bg-white hover:bg-[#EAF6ED]/40';
                   }
                 } else if (leave) {
-                  statusLabel = leave.leaveType?.name || 'On Leave';
+                  statusLabel = 'On Leave';
                   shortLabel = 'Leave';
                   dotClass = 'bg-sky-600';
                   statusBadgeClass = 'bg-sky-50 text-sky-700 border-sky-200';
@@ -917,7 +917,7 @@ export default function AttendancePage() {
                 {selectedDayDetail.leave && (
                   <div className="p-3 rounded-lg bg-sky-50/70 border border-sky-200 text-sky-800 text-xs">
                     <span className="font-semibold block">Approved Time Off:</span>
-                    <span className="mt-0.5 block">{selectedDayDetail.leave.leaveType?.name} &bull; &ldquo;{selectedDayDetail.leave.reason}&rdquo;</span>
+                    <span className="mt-0.5 block">Leave &bull; &ldquo;{selectedDayDetail.leave.reason}&rdquo;</span>
                   </div>
                 )}
               </div>

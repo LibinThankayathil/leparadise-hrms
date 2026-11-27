@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getSession, hashPassword } from '@/lib/auth';
 import { isCurrentManager } from '@/lib/employee-access';
+import { getMonthlyLeaveUsage } from '@/lib/leave-policy';
 import { Role, EmploymentStatus, Prisma } from '@prisma/client';
 import { z } from 'zod';
 
@@ -109,11 +110,14 @@ export async function GET(
     const attendanceHealthRate =
       totalLogs > 0 ? Math.round(((presentCount + lateCount + halfDayCount) / totalLogs) * 100) : 100;
 
+    const monthlyLeave = await getMonthlyLeaveUsage(prisma, id, now.getFullYear(), now.getMonth());
+
     return NextResponse.json({
       employee,
       stats: {
         tenureString,
         tenureMonths: diffMonths,
+        monthlyLeave,
         attendance: {
           totalLogs,
           presentCount,
