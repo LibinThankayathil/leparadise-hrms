@@ -26,7 +26,7 @@ export function PushNotificationManager() {
 
   useEffect(() => {
     if (typeof window === 'undefined' || !user) return;
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
       setPermission('unsupported');
       return;
     }
@@ -107,7 +107,7 @@ export function PushNotificationManager() {
   if (!showBanner) return null;
 
   return (
-    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-md">
+    <div className="fixed bottom-[calc(max(1rem,env(safe-area-inset-bottom))+4.75rem)] md:bottom-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-md">
       <div className="bg-[#1C2130] text-white rounded-xl shadow-2xl p-4 flex items-start gap-3 border border-white/10">
         <div className="w-9 h-9 rounded-lg bg-[#2D7A58] flex items-center justify-center shrink-0 mt-0.5">
           <Bell className="w-4 h-4 text-white" />
