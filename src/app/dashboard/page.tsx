@@ -6,12 +6,14 @@ import { DashboardLayout } from '@/components/DashboardLayout';
 import { useAuth } from '@/context/AuthContext';
 import { 
   Users, 
-  Building2, 
   Clock, 
   CalendarCheck, 
-  Clock4,
   ChevronRight,
-  LayoutDashboard
+  Timer,
+  UserCheck,
+  Sun,
+  Sunset,
+  Moon
 } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 
@@ -79,88 +81,191 @@ export default function DashboardPage() {
   const isClockedIn = !!todayRecord?.clockIn;
   const isClockedOut = !!todayRecord?.clockOut;
 
+  // Live elapsed shift duration calculation
+  let elapsedFormatted = '00:00:00';
+  let elapsedShiftText = '';
+  if (isClockedIn && todayRecord?.clockIn) {
+    const startTime = new Date(todayRecord.clockIn).getTime();
+    const endTime = isClockedOut && todayRecord?.clockOut ? new Date(todayRecord.clockOut).getTime() : currentTime.getTime();
+    const diffMs = Math.max(0, endTime - startTime);
+    const hrs = Math.floor(diffMs / (1000 * 60 * 60));
+    const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    const secs = Math.floor((diffMs % (1000 * 60)) / 1000);
+    elapsedFormatted = `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    elapsedShiftText = `${hrs}h ${mins}m`;
+  }
+
+  // Greeting logic
+  const hour = currentTime.getHours();
+  const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
+  const GreetingIcon = hour < 12 ? Sun : hour < 17 ? Sunset : Moon;
+  const firstName = user?.employee?.firstName ?? user?.email?.split('@')[0] ?? 'there';
+
   return (
     <DashboardLayout actionLabel="Daily Operations">
       <div className="space-y-6">
-        {/* Title Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-xl bg-[#252B37] flex items-center justify-center text-white shadow-sm shrink-0">
-              <LayoutDashboard className="w-5 h-5 text-white" />
+        {/* Hero Greeting Header */}
+        <div className="relative overflow-hidden rounded-2xl border border-[#EAECF0] bg-gradient-to-br from-[#EAF6ED]/75 via-white to-[#FAFBFB] p-5 sm:p-6 shadow-subtle">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start sm:items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-[#2D7A58] text-white flex items-center justify-center shadow-sm shrink-0">
+                <GreetingIcon className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-[#2D7A58] bg-[#EAF6ED] border border-[#D1EBD9] px-2 py-0.5 rounded-full">
+                    {isStaff ? 'Staff Portal' : 'Manager Overview'}
+                  </span>
+                  {user?.employee?.designation && (
+                    <span className="text-[11px] font-medium text-[#717680] hidden sm:inline">
+                      &bull; {user.employee.designation}
+                    </span>
+                  )}
+                </div>
+                <h1 className="text-xl sm:text-2xl font-bold text-[#181D27] tracking-tight leading-snug">
+                  {greeting}, {firstName}
+                </h1>
+                <p className="text-xs text-[#717680] mt-0.5">
+                  {isStaff
+                    ? 'Your shift status, attendance timeline, and pending requests'
+                    : 'Real-time workspace statistics and attendance activity'}
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-[#181D27] tracking-tight">
-                Dashboard Overview
-              </h1>
-              <p className="text-xs text-[#717680] font-normal mt-0.5">
-                Real-time workspace statistics, attendance activity, and department status
-              </p>
-            </div>
-          </div>
 
-          <div className="inline-flex items-center gap-2 bg-[#FAFBFB] px-3.5 py-1.5 rounded-lg border border-[#EAECF0] shadow-subtle text-xs font-medium text-[#535862] w-fit">
-            <Clock4 className="w-3.5 h-3.5 text-[#2D7A58] animate-pulse" />
-            <span>
-              {currentTime.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} • {currentTime.toLocaleTimeString()}
-            </span>
+            <div className="inline-flex items-center gap-2.5 bg-white px-3.5 py-2 rounded-xl border border-[#EAECF0] shadow-subtle text-xs font-medium text-[#535862] w-fit shrink-0">
+              <span className="w-2 h-2 rounded-full bg-[#2D7A58] animate-pulse shrink-0" />
+              <span>
+                {currentTime.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+              </span>
+              <span className="text-slate-300">|</span>
+              <span className="font-mono font-semibold text-[#181D27] tabular-nums">
+                {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </span>
+            </div>
           </div>
         </div>
 
         {/* Metric Cards Grid - Responsive */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white p-5 rounded-xl border border-[#EAECF0] shadow-subtle flex items-center justify-between">
-            <div>
-              <p className="text-[11px] font-semibold text-[#717680] uppercase tracking-wider">Total Staff</p>
-              <h3 className="text-2xl font-bold text-[#181D27] mt-1">{stats?.totalEmployees ?? '12'}</h3>
-              <p className="text-[11px] text-[#2D7A58] font-medium mt-1">Active Staff Contracts</p>
-            </div>
-            <div className="w-10 h-10 rounded-lg bg-[#EAF6ED] text-[#2D7A58] flex items-center justify-center border border-[#D1EBD9]">
-              <Users className="w-5 h-5" />
-            </div>
-          </div>
+        <div className={`grid grid-cols-1 sm:grid-cols-2 ${isStaff ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-4`}>
+          {isStaff ? (
+            <>
+              {/* Staff Card 1: My Shift Today */}
+              <div className="bg-white p-5 rounded-xl border border-[#EAECF0] shadow-subtle flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-semibold text-[#717680] uppercase tracking-wider">My Shift Today</p>
+                  <h3 className="text-xl font-bold text-[#181D27] mt-1">
+                    {isClockedOut ? 'Shift Completed' : isClockedIn ? 'On Duty' : 'Not Logged'}
+                  </h3>
+                  <p className="text-[11px] text-[#2D7A58] font-medium mt-1 truncate max-w-[170px]">
+                    {isClockedOut 
+                      ? 'Shift Completed' 
+                      : isClockedIn 
+                      ? `In at ${new Date(todayRecord.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` 
+                      : 'Self-Check In Required'}
+                  </p>
+                </div>
+                <div className="w-10 h-10 rounded-lg bg-[#EAF6ED] text-[#2D7A58] flex items-center justify-center border border-[#D1EBD9] shrink-0">
+                  <Clock className="w-5 h-5" />
+                </div>
+              </div>
 
-          <div className="bg-white p-5 rounded-xl border border-[#EAECF0] shadow-subtle flex items-center justify-between">
-            <div>
-              <p className="text-[11px] font-semibold text-[#717680] uppercase tracking-wider">
-                {isStaff ? 'My Shift Today' : 'Present Today'}
-              </p>
-              <h3 className="text-2xl font-bold text-[#181D27] mt-1">
-                {isStaff 
-                  ? (isClockedIn ? 'Clocked In' : 'Not Logged') 
-                  : (stats?.todayAttendanceCount ?? '8')}
-              </h3>
-              <p className="text-[11px] text-[#2D7A58] font-medium mt-1">
-                {isStaff ? (isClockedOut ? 'Shift Completed' : 'Self-Check In') : 'Logged Check-ins'}
-              </p>
-            </div>
-            <div className="w-10 h-10 rounded-lg bg-[#EAF6ED] text-[#2D7A58] flex items-center justify-center border border-[#D1EBD9]">
-              <Clock className="w-5 h-5" />
-            </div>
-          </div>
+              {/* Staff Card 2: Live Shift Duration */}
+              <div className="bg-white p-5 rounded-xl border border-[#EAECF0] shadow-subtle flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-[11px] font-semibold text-[#717680] uppercase tracking-wider">Live Shift Duration</p>
+                    {isClockedIn && !isClockedOut && (
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    )}
+                  </div>
+                  <h3 className="text-xl font-extrabold text-[#181D27] font-mono tracking-tight mt-1">
+                    {isClockedIn ? elapsedFormatted : '00:00:00'}
+                  </h3>
+                  <p className="text-[11px] text-[#2D7A58] font-medium mt-1 truncate max-w-[170px]">
+                    {isClockedOut 
+                      ? `Total logged: ${elapsedShiftText}` 
+                      : isClockedIn 
+                      ? 'Active shift timer' 
+                      : 'Clock in to start timer'}
+                  </p>
+                </div>
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center border shrink-0 ${
+                  isClockedIn && !isClockedOut
+                    ? 'bg-[#EAF6ED] text-[#2D7A58] border-[#D1EBD9]'
+                    : 'bg-[#FAFBFB] text-slate-400 border-[#EAECF0]'
+                }`}>
+                  <Timer className={`w-5 h-5 ${isClockedIn && !isClockedOut ? 'animate-pulse' : ''}`} />
+                </div>
+              </div>
 
-          <div className="bg-white p-5 rounded-xl border border-[#EAECF0] shadow-subtle flex items-center justify-between">
-            <div>
-              <p className="text-[11px] font-semibold text-[#717680] uppercase tracking-wider">
-                {isStaff ? 'My Pending Requests' : 'Pending Leaves'}
-              </p>
-              <h3 className="text-2xl font-bold text-[#181D27] mt-1">{stats?.pendingLeavesCount ?? '0'}</h3>
-              <p className="text-[11px] text-[#B93815] font-medium mt-1">Awaiting Decision</p>
-            </div>
-            <div className="w-10 h-10 rounded-lg bg-[#FEF6EE] text-[#B93815] flex items-center justify-center border border-[#F9DBAF]">
-              <CalendarCheck className="w-5 h-5" />
-            </div>
-          </div>
+              {/* Staff Card 3: Monthly Punctuality Health */}
+              <div className="bg-white p-5 rounded-xl border border-[#EAECF0] shadow-subtle flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-semibold text-[#717680] uppercase tracking-wider">Monthly Punctuality</p>
+                  <h3 className="text-xl font-bold text-[#181D27] mt-1">
+                    {stats?.monthStats?.onTimeRate ?? 100}% On-Time
+                  </h3>
+                  <p className="text-[11px] text-[#535862] font-medium mt-1 truncate max-w-[170px]">
+                    {stats?.monthStats?.totalLogged ?? 0} days recorded ({stats?.monthStats?.lateCount ?? 0} late)
+                  </p>
+                </div>
+                <div className="w-10 h-10 rounded-lg bg-[#EAF6ED] text-[#2D7A58] flex items-center justify-center border border-[#D1EBD9] shrink-0">
+                  <UserCheck className="w-5 h-5" />
+                </div>
+              </div>
 
-          <div className="bg-white p-5 rounded-xl border border-[#EAECF0] shadow-subtle flex items-center justify-between">
-            <div>
-              <p className="text-[11px] font-semibold text-[#717680] uppercase tracking-wider">Departments</p>
-              <h3 className="text-2xl font-bold text-[#181D27] mt-1">{stats?.totalDepartments ?? '5'}</h3>
-              <p className="text-[11px] text-[#2D7A58] font-medium mt-1">Hotel Divisions</p>
-            </div>
-            <div className="w-10 h-10 rounded-lg bg-[#EAF6ED] text-[#2D7A58] flex items-center justify-center border border-[#D1EBD9]">
-              <Building2 className="w-5 h-5" />
-            </div>
-          </div>
+              {/* Staff Card 4: My Pending Requests */}
+              <div className="bg-white p-5 rounded-xl border border-[#EAECF0] shadow-subtle flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-semibold text-[#717680] uppercase tracking-wider">My Pending Requests</p>
+                  <h3 className="text-2xl font-bold text-[#181D27] mt-1">{stats?.pendingLeavesCount ?? '0'}</h3>
+                  <p className="text-[11px] text-[#B93815] font-medium mt-1">Awaiting Decision</p>
+                </div>
+                <div className="w-10 h-10 rounded-lg bg-[#FEF6EE] text-[#B93815] flex items-center justify-center border border-[#F9DBAF] shrink-0">
+                  <CalendarCheck className="w-5 h-5" />
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Manager Card 1 */}
+              <div className="bg-white p-5 rounded-xl border border-[#EAECF0] shadow-subtle flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-semibold text-[#717680] uppercase tracking-wider">Total Staff</p>
+                  <h3 className="text-2xl font-bold text-[#181D27] mt-1">{stats?.totalEmployees ?? '12'}</h3>
+                  <p className="text-[11px] text-[#2D7A58] font-medium mt-1">Active Staff Contracts</p>
+                </div>
+                <div className="w-10 h-10 rounded-lg bg-[#EAF6ED] text-[#2D7A58] flex items-center justify-center border border-[#D1EBD9]">
+                  <Users className="w-5 h-5" />
+                </div>
+              </div>
+
+              {/* Manager Card 2 */}
+              <div className="bg-white p-5 rounded-xl border border-[#EAECF0] shadow-subtle flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-semibold text-[#717680] uppercase tracking-wider">Present Today</p>
+                  <h3 className="text-2xl font-bold text-[#181D27] mt-1">{stats?.todayAttendanceCount ?? '8'}</h3>
+                  <p className="text-[11px] text-[#2D7A58] font-medium mt-1">Logged Check-ins</p>
+                </div>
+                <div className="w-10 h-10 rounded-lg bg-[#EAF6ED] text-[#2D7A58] flex items-center justify-center border border-[#D1EBD9]">
+                  <Clock className="w-5 h-5" />
+                </div>
+              </div>
+
+              {/* Manager Card 3 */}
+              <div className="bg-white p-5 rounded-xl border border-[#EAECF0] shadow-subtle flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-semibold text-[#717680] uppercase tracking-wider">Pending Leaves</p>
+                  <h3 className="text-2xl font-bold text-[#181D27] mt-1">{stats?.pendingLeavesCount ?? '0'}</h3>
+                  <p className="text-[11px] text-[#B93815] font-medium mt-1">Awaiting Decision</p>
+                </div>
+                <div className="w-10 h-10 rounded-lg bg-[#FEF6EE] text-[#B93815] flex items-center justify-center border border-[#F9DBAF]">
+                  <CalendarCheck className="w-5 h-5" />
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Action Widgets Grid */}
@@ -192,6 +297,17 @@ export default function DashboardPage() {
                     {todayRecord?.clockOut ? new Date(todayRecord.clockOut).toLocaleTimeString() : 'Not clocked out'}
                   </span>
                 </div>
+                {isStaff && isClockedIn && (
+                  <div className="flex justify-between items-center pt-2 border-t border-[#EAECF0]">
+                    <span className="text-[#717680] flex items-center gap-1.5">
+                      <span className={`w-2 h-2 rounded-full ${isClockedOut ? 'bg-slate-300' : 'bg-[#2D7A58] animate-pulse'}`} />
+                      Shift Duration:
+                    </span>
+                    <span className="font-mono font-bold text-[#2D7A58]">
+                      {elapsedFormatted}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 

@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/DashboardLayout';
-import { InlineLoader } from '@/components/LoadingScreen';
 import { useAuth } from '@/context/AuthContext';
 import { Permissions } from '@/lib/permissions';
-import { CalendarDays, X, FileText } from 'lucide-react';
+import { CalendarDays, X } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 
 export default function LeavesPage() {
@@ -121,18 +120,23 @@ export default function LeavesPage() {
               </p>
             </div>
           </div>
-
-          <button
-            type="button"
-            onClick={() => setShowModal(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#2D7A58] hover:bg-[#256549] text-white rounded-lg text-[13px] font-semibold shadow-sm transition-all cursor-pointer self-start sm:self-auto"
-          >
-            <span>+ Request Leave</span>
-          </button>
         </div>
 
-        {/* Leave Balances Grid - Responsive */}
-        {balances.length > 0 && (
+        {/* Leave Balances Grid - Responsive (Employees only) */}
+        {isStaff && loading ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 animate-pulse" aria-busy="true" aria-label="Loading leave balances">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={`skel-bal-${i}`} className="bg-white p-4 rounded-xl border border-[#EAECF0] shadow-subtle space-y-2.5">
+                <div className="h-3 w-20 rounded bg-slate-200" />
+                <div className="flex items-baseline gap-2">
+                  <div className="h-7 w-8 rounded bg-slate-200" />
+                  <div className="h-3 w-16 rounded bg-slate-100" />
+                </div>
+                <div className="w-full bg-slate-100 rounded-full h-1" />
+              </div>
+            ))}
+          </div>
+        ) : isStaff && balances.length > 0 && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {balances.map((b) => {
               const remaining = b.totalDays - b.usedDays;
@@ -161,13 +165,15 @@ export default function LeavesPage() {
             Active Requests ({requests.length})
           </span>
 
-          <button
-            onClick={() => window.print()}
-            className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-[#EAECF0] hover:border-slate-300 text-[#344054] rounded-lg text-[13px] font-medium shadow-subtle cursor-pointer"
-          >
-            <FileText className="w-3.5 h-3.5 text-slate-400" />
-            <span>Export PDF</span>
-          </button>
+          {Boolean(user?.employee) && (
+            <button
+              type="button"
+              onClick={() => setShowModal(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#2D7A58] hover:bg-[#256549] text-white rounded-lg text-[13px] font-semibold shadow-sm transition-all cursor-pointer"
+            >
+              <span>+ Request Leave</span>
+            </button>
+          )}
         </div>
 
         {/* Leave Requests Table */}
@@ -176,7 +182,7 @@ export default function LeavesPage() {
             <table className="w-full text-left border-collapse text-[13px] min-w-[760px]">
               <thead>
                 <tr className="bg-[#FAFBFB] border-b border-[#EAECF0] text-[11px] font-semibold text-[#535862]">
-                  <th className="py-3 px-4">Staff Member</th>
+                  {!isStaff && <th className="py-3 px-4">Staff Member</th>}
                   <th className="py-3 px-4">Leave Category</th>
                   <th className="py-3 px-4">Duration Range</th>
                   <th className="py-3 px-4">Days</th>
@@ -187,32 +193,61 @@ export default function LeavesPage() {
               </thead>
               <tbody className="divide-y divide-[#EAECF0] text-[#181D27]">
                 {loading ? (
-                  <tr>
-                    <td colSpan={canReview ? 7 : 6} className="py-8">
-                      <InlineLoader message="Loading leave inquiries..." />
-                    </td>
-                  </tr>
+                  <>
+                    <tr role="status" className="sr-only">
+                      <td colSpan={(!isStaff ? 1 : 0) + 5 + (canReview ? 1 : 0)}>
+                        Loading leave requests...
+                      </td>
+                    </tr>
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <tr key={`skel-leave-${i}`} aria-hidden="true" className="animate-pulse">
+                        {!isStaff && (
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-7 h-7 rounded-full bg-slate-200 shrink-0" />
+                              <div className="h-3.5 w-28 rounded bg-slate-200" />
+                            </div>
+                          </td>
+                        )}
+                        <td className="py-3 px-4"><div className="h-3.5 w-24 rounded bg-slate-200" /></td>
+                        <td className="py-3 px-4"><div className="h-3.5 w-36 rounded bg-slate-100" /></td>
+                        <td className="py-3 px-4"><div className="h-3.5 w-8 rounded bg-slate-200" /></td>
+                        <td className="py-3 px-4"><div className="h-3.5 w-40 rounded bg-slate-100" /></td>
+                        <td className="py-3 px-4"><div className="h-5 w-20 rounded-full bg-slate-200" /></td>
+                        {canReview && (
+                          <td className="py-3 px-4 text-right">
+                            <div className="inline-flex items-center gap-1.5">
+                              <div className="h-6 w-16 rounded-lg bg-slate-100" />
+                              <div className="h-6 w-14 rounded-lg bg-slate-100" />
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </>
                 ) : requests.length === 0 ? (
                   <tr>
-                    <td colSpan={canReview ? 7 : 6} className="py-12 text-center text-slate-400 text-xs">
+                    <td colSpan={(!isStaff ? 1 : 0) + 5 + (canReview ? 1 : 0)} className="py-12 text-center text-slate-400 text-xs">
                       {isStaff ? 'You have no leave requests submitted yet.' : 'No leave requests submitted yet.'}
                     </td>
                   </tr>
                 ) : (
                   requests.map((req) => (
                     <tr key={req.id} className="hover:bg-[#F9FAFB] transition-colors">
-                      <td className="py-3 px-4 font-semibold text-[#181D27]">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-7 h-7 rounded-full bg-slate-200 overflow-hidden shrink-0">
-                            <img
-                              src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${req.employee?.firstName}`}
-                              alt=""
-                              className="w-full h-full object-cover"
-                            />
+                      {!isStaff && (
+                        <td className="py-3 px-4 font-semibold text-[#181D27]">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-7 h-7 rounded-full bg-slate-200 overflow-hidden shrink-0">
+                              <img
+                                src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${req.employee?.firstName}`}
+                                alt=""
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            <span>{req.employee?.firstName} {req.employee?.lastName}</span>
                           </div>
-                          <span>{req.employee?.firstName} {req.employee?.lastName}</span>
-                        </div>
-                      </td>
+                        </td>
+                      )}
                       <td className="py-3 px-4 text-[#535862]">
                         {req.leaveType?.name}
                       </td>

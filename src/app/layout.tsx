@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { AuthProvider } from "@/context/AuthContext";
 import { PushNotificationManager } from "@/components/PushNotificationManager";
+import { MobileBottomNav } from "@/components/MobileBottomNav";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Le Paradise HRMS - Hotel & Resort Staff Management",
+  title: "Le Paradise HRMS",
   description: "Modern enterprise human resources management system for Le Paradise Resorts",
   manifest: "/manifest.json",
   themeColor: "#2D7A58",
@@ -27,6 +28,7 @@ export default function RootLayout({
         <AuthProvider>
           {children}
           <PushNotificationManager />
+          <MobileBottomNav />
         </AuthProvider>
         <SpeedInsights />
       </body>

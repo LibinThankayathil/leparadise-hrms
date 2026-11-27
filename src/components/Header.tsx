@@ -14,19 +14,23 @@ export function Header({ onActionClick, actionLabel = '+ Add New Staff', onToggl
   const pathname = usePathname();
 
   const getBreadcrumbs = () => {
+    if (pathname.startsWith('/employees/') && pathname !== '/employees') {
+      return { section: 'Manage Staff', current: 'Staff Profile' };
+    }
+
     switch (pathname) {
       case '/dashboard':
         return { section: 'Daily Operation', current: 'Dashboard' };
       case '/employees':
         return { section: 'Manage Staff', current: 'Staff Directory' };
-      case '/departments':
-        return { section: 'Manage Staff', current: 'Departments' };
       case '/attendance':
         return { section: 'Daily Operation', current: 'Attendance Logs' };
       case '/leaves':
         return { section: 'Daily Operation', current: 'Leave Inquiries' };
       case '/payroll':
         return { section: 'Accounting', current: 'Payroll & Wages' };
+      case '/analytics':
+        return { section: 'Intelligence', current: 'HR Analytics' };
       default:
         return { section: 'Manage Staff', current: 'Overview' };
     }

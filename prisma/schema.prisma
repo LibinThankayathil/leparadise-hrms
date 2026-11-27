@@ -64,17 +64,6 @@ model PushSubscription {
   @@map("push_subscriptions")
 }
 
-model Department {
-  id          String     @id @default(uuid())
-  name        String     @unique
-  description String?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  employees   Employee[]
-
-  @@map("departments")
-}
-
 model Employee {
   id            String           @id @default(uuid())
   userId        String           @unique
@@ -83,8 +72,6 @@ model Employee {
   firstName     String
   lastName      String
   phone         String?
-  departmentId  String?
-  department    Department?      @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   designation   String
   managerId     String?
   manager       Employee?        @relation("ManagerSubordinates", fields: [managerId], references: [id], onDelete: SetNull)
@@ -180,4 +167,3 @@ model Payslip {
   @@unique([employeeId, month, year])
   @@map("payslips")
 }
-

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
-import { AttendanceStatus, Role } from '@prisma/client';
+import { AttendanceStatus, LeaveStatus, Role } from '@prisma/client';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,23 +14,47 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const dateStr = searchParams.get('date');
+    const month = searchParams.get('month');
+    const year = searchParams.get('year');
     const employeeIdParam = searchParams.get('employeeId');
 
     const where: any = {};
 
     // Non-manager (regular employee) can only see their own attendance
+    let targetEmployeeId: string | null = null;
     if (session.role === Role.EMPLOYEE) {
       if (!session.employeeId) {
-        return NextResponse.json({ records: [], todayRecord: null });
+        return NextResponse.json({ records: [], todayRecord: null, approvedLeaves: [] });
       }
       where.employeeId = session.employeeId;
+      targetEmployeeId = session.employeeId;
     } else if (employeeIdParam) {
       where.employeeId = employeeIdParam;
+      targetEmployeeId = employeeIdParam;
     }
 
-    if (dateStr) {
-      const targetDate = new Date(dateStr);
-      where.date = targetDate;
+    let hasValidDateFilter = false;
+    if (month && year) {
+      const m = parseInt(month, 10);
+      const y = parseInt(year, 10);
+      const startOfMonth = new Date(Date.UTC(y, m - 1, 1));
+      const endOfMonth = new Date(Date.UTC(y, m, 0, 23, 59, 59, 999));
+      where.date = {
+        gte: startOfMonth,
+        lte: endOfMonth,
+      };
+    } else if (dateStr) {
+      const parts = dateStr.split('-').map(Number);
+      if (parts.length === 3 && parts.every((n) => !Number.isNaN(n))) {
+        hasValidDateFilter = true;
+        const [y, m, d] = parts;
+        const startOfDay = new Date(y, m - 1, d, 0, 0, 0, 0);
+        const endOfDay = new Date(y, m - 1, d, 23, 59, 59, 999);
+        where.date = {
+          gte: startOfDay,
+          lte: endOfDay,
+        };
+      }
     }
 
     const records = await prisma.attendanceRecord.findMany({
@@ -42,12 +66,11 @@ export async function GET(request: Request) {
             employeeCode: true,
             firstName: true,
             lastName: true,
-            department: { select: { name: true } },
           },
         },
       },
-      orderBy: { date: 'desc' },
-      take: 100,
+      orderBy: dateStr ? [{ clockIn: 'asc' }, { employee: { firstName: 'asc' } }] : { date: 'asc' },
+      ...((month && year) || hasValidDateFilter ? {} : { take: 100 }),
     });
 
     // Check today's record for logged-in user
@@ -63,7 +86,21 @@ export async function GET(request: Request) {
       });
     }
 
-    return NextResponse.json({ records, todayRecord });
+    // Approved leaves for the target employee (if checking employee attendance)
+    let approvedLeaves: any[] = [];
+    if (targetEmployeeId) {
+      approvedLeaves = await prisma.leaveRequest.findMany({
+        where: {
+          employeeId: targetEmployeeId,
+          status: LeaveStatus.APPROVED,
+        },
+        include: {
+          leaveType: { select: { name: true, code: true } },
+        },
+      });
+    }
+
+    return NextResponse.json({ records, todayRecord, approvedLeaves });
   } catch (error) {
     console.error('Fetch attendance error:', error);
     return NextResponse.json({ error: 'Failed to fetch attendance' }, { status: 500 });
