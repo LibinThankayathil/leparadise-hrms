@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
 import { LeaveStatus, Role } from '@prisma/client';
 import { z } from 'zod';
+import { sendPushToUser, sendPushToManagers } from '@/lib/push';
 
 export const dynamic = 'force-dynamic';
 
@@ -74,6 +75,19 @@ export async function POST(
 
       return result;
     });
+
+    // Notify the employee about the decision (fire-and-forget)
+    const isApproved = status === 'APPROVED';
+    const startStr = leaveRequest.startDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+    const endStr = leaveRequest.endDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    sendPushToUser(leaveRequest.employee.userId, {
+      title: isApproved ? '✅ Leave Approved' : '❌ Leave Rejected',
+      body: isApproved
+        ? `Your leave request (${startStr} – ${endStr}) has been approved.`
+        : `Your leave request (${startStr} – ${endStr}) was not approved.${reviewComment ? ` Reason: ${reviewComment}` : ''}`,
+      url: '/leaves',
+      tag: `leave-review-${id}`,
+    }).catch(console.error);
 
     return NextResponse.json({ success: true, leaveRequest: updated });
   } catch (error) {

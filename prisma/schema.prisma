@@ -38,16 +38,30 @@ enum PayrollStatus {
 }
 
 model User {
-  id           String    @id @default(uuid())
-  email        String    @unique
-  passwordHash String
-  role         Role      @default(EMPLOYEE)
-  isActive     Boolean   @default(true)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  employee     Employee?
+  id                String             @id @default(uuid())
+  email             String             @unique
+  passwordHash      String
+  role              Role               @default(EMPLOYEE)
+  isActive          Boolean            @default(true)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  employee          Employee?
+  pushSubscriptions PushSubscription[]
 
   @@map("users")
+}
+
+model PushSubscription {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("push_subscriptions")
 }
 
 model Employee {
@@ -153,4 +167,3 @@ model Payslip {
   @@unique([employeeId, month, year])
   @@map("payslips")
 }
-

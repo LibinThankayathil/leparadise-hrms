@@ -6,24 +6,21 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Starting Le Paradise HRMS database seeding...');
 
-  // 1. Seed Leave Types
+  // 1. Seed Single Leave Type (2 leaves per month policy)
   const leaveTypesData = [
-    { name: 'Annual Leave', code: 'ANNUAL', defaultDays: 14 },
-    { name: 'Sick Leave', code: 'SICK', defaultDays: 10 },
-    { name: 'Casual Leave', code: 'CASUAL', defaultDays: 7 },
-    { name: 'Unpaid Leave', code: 'UNPAID', defaultDays: 30 },
+    { name: 'Leave', code: 'LEAVE', defaultDays: 2 },
   ];
 
   const leaveTypes: any[] = [];
   for (const lt of leaveTypesData) {
     const created = await prisma.leaveType.upsert({
       where: { code: lt.code },
-      update: {},
+      update: { name: lt.name, defaultDays: lt.defaultDays },
       create: lt,
     });
     leaveTypes.push(created);
   }
-  console.log(`✅ Seeded ${leaveTypesData.length} leave types`);
+  console.log(`✅ Seeded ${leaveTypesData.length} leave type`);
 
   // 2. Seed Users & Employees
   const defaultPassword = await bcrypt.hash('Manager@123', 10);

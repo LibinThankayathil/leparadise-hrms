@@ -8,7 +8,6 @@ import {
   CalendarDays,
   CreditCard,
   Users,
-  Menu,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { cn } from '@/lib/utils';
@@ -80,26 +79,6 @@ export function MobileBottomNav({ user: userProp, onOpenMenu }: MobileBottomNavP
             </Link>
           );
         })}
-
-        {!isStaff && (
-          <button
-            type="button"
-            onClick={() => {
-              if (onOpenMenu) {
-                onOpenMenu();
-              } else {
-                window.dispatchEvent(new CustomEvent('open-mobile-sidebar'));
-              }
-            }}
-            className="flex flex-col items-center justify-center flex-1 py-1.5 px-2 rounded-full transition-all min-h-[44px] min-w-0 text-[#414651] hover:text-[#181D27] hover:bg-slate-900/5 cursor-pointer"
-            aria-label="Open more navigation options"
-          >
-            <Menu className="w-4 h-4 shrink-0" />
-            <span className="text-[10px] font-medium mt-0.5 leading-tight truncate max-w-full">
-              More
-            </span>
-          </button>
-        )}
       </div>
     </nav>
   );

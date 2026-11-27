@@ -13,15 +13,21 @@ export default function LeavesPage() {
   const isStaff = user?.role === 'EMPLOYEE';
 
   const [requests, setRequests] = useState<any[]>([]);
-  const [balances, setBalances] = useState<any[]>([]);
-  const [leaveTypes, setLeaveTypes] = useState<any[]>([]);
+  const [monthlyBalance, setMonthlyBalance] = useState<{
+    limit: number;
+    usedDays: number;
+    pendingDays: number;
+    committedDays: number;
+    remainingDays: number;
+    month: number;
+    year: number;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   // Form State
-  const [leaveTypeId, setLeaveTypeId] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [reason, setReason] = useState('');
@@ -32,11 +38,7 @@ export default function LeavesPage() {
       if (res.ok) {
         const d = await res.json();
         setRequests(d.requests);
-        setBalances(d.balances);
-        setLeaveTypes(d.leaveTypes);
-        if (d.leaveTypes.length > 0 && !leaveTypeId) {
-          setLeaveTypeId(d.leaveTypes[0].id);
-        }
+        setMonthlyBalance(d.monthlyBalance ?? null);
       }
     } catch (e) {
       console.error(e);
@@ -58,7 +60,7 @@ export default function LeavesPage() {
       const res = await fetch('/api/leaves', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leaveTypeId, startDate, endDate, reason }),
+        body: JSON.stringify({ startDate, endDate, reason }),
       });
 
       const d = await res.json();
@@ -115,47 +117,48 @@ export default function LeavesPage() {
               </h1>
               <p className="text-xs text-[#717680] font-normal mt-0.5">
                 {isStaff
-                  ? 'View your annual leave balances, submit time-off requests, and track status'
-                  : 'Staff leave balances, time-off requests, and manager approvals'}
+                  ? 'Monthly allowance of 2 leave days per month — submit requests and track approval status'
+                  : 'Staff leave requests, monthly 2-day allowance, and manager approvals'}
               </p>
             </div>
           </div>
         </div>
 
-        {/* Leave Balances Grid - Responsive (Employees only) */}
+        {/* Monthly Leave Balance Card - Responsive (Employees only) */}
         {isStaff && loading ? (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 animate-pulse" aria-busy="true" aria-label="Loading leave balances">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={`skel-bal-${i}`} className="bg-white p-4 rounded-xl border border-[#EAECF0] shadow-subtle space-y-2.5">
-                <div className="h-3 w-20 rounded bg-slate-200" />
-                <div className="flex items-baseline gap-2">
-                  <div className="h-7 w-8 rounded bg-slate-200" />
-                  <div className="h-3 w-16 rounded bg-slate-100" />
-                </div>
-                <div className="w-full bg-slate-100 rounded-full h-1" />
-              </div>
-            ))}
+          <div className="bg-white p-4 rounded-xl border border-[#EAECF0] shadow-subtle space-y-2.5 max-w-sm animate-pulse" aria-busy="true" aria-label="Loading monthly leave balance">
+            <div className="h-3 w-28 rounded bg-slate-200" />
+            <div className="flex items-baseline gap-2">
+              <div className="h-7 w-8 rounded bg-slate-200" />
+              <div className="h-3 w-28 rounded bg-slate-100" />
+            </div>
+            <div className="w-full bg-slate-100 rounded-full h-1.5" />
           </div>
-        ) : isStaff && balances.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {balances.map((b) => {
-              const remaining = b.totalDays - b.usedDays;
-              return (
-                <div key={b.id} className="bg-white p-4 rounded-xl border border-[#EAECF0] shadow-subtle">
-                  <p className="text-[11px] font-semibold text-[#717680] uppercase tracking-wider">{b.leaveType?.name}</p>
-                  <div className="flex items-baseline gap-2 mt-1.5">
-                    <span className="text-2xl font-bold text-[#2D7A58]">{remaining}</span>
-                    <span className="text-xs text-[#717680] font-normal">/ {b.totalDays} Days Left</span>
-                  </div>
-                  <div className="mt-2.5 w-full bg-[#EAECF0] rounded-full h-1 overflow-hidden">
-                    <div
-                      className="bg-[#2D7A58] h-1 rounded-full"
-                      style={{ width: `${Math.min(100, (b.usedDays / b.totalDays) * 100)}%` }}
-                    ></div>
-                  </div>
-                </div>
-              );
-            })}
+        ) : isStaff && monthlyBalance && (
+          <div className="bg-white p-4 rounded-xl border border-[#EAECF0] shadow-subtle max-w-sm">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[11px] font-semibold text-[#717680] uppercase tracking-wider">
+                Monthly Leave Allowance
+              </p>
+              <span className="text-[11px] text-[#717680]">
+                {new Date(monthlyBalance.year, monthlyBalance.month - 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+              </span>
+            </div>
+            <div className="flex items-baseline gap-2 mt-1.5">
+              <span className="text-2xl font-bold text-[#2D7A58]">{monthlyBalance.remainingDays}</span>
+              <span className="text-xs text-[#717680] font-normal">/ {monthlyBalance.limit} Days Left This Month</span>
+            </div>
+            <div className="mt-2.5 w-full bg-[#EAECF0] rounded-full h-1.5 overflow-hidden">
+              <div
+                className="bg-[#2D7A58] h-1.5 rounded-full transition-all"
+                style={{ width: `${Math.min(100, (monthlyBalance.committedDays / monthlyBalance.limit) * 100)}%` }}
+              />
+            </div>
+            {(monthlyBalance.usedDays > 0 || monthlyBalance.pendingDays > 0) && (
+              <p className="text-[11px] text-[#717680] mt-2">
+                {monthlyBalance.usedDays} approved &bull; {monthlyBalance.pendingDays} pending
+              </p>
+            )}
           </div>
         )}
 
@@ -183,7 +186,6 @@ export default function LeavesPage() {
               <thead>
                 <tr className="bg-[#FAFBFB] border-b border-[#EAECF0] text-[11px] font-semibold text-[#535862]">
                   {!isStaff && <th className="py-3 px-4">Staff Member</th>}
-                  <th className="py-3 px-4">Leave Category</th>
                   <th className="py-3 px-4">Duration Range</th>
                   <th className="py-3 px-4">Days</th>
                   <th className="py-3 px-4">Handover / Reason</th>
@@ -195,7 +197,7 @@ export default function LeavesPage() {
                 {loading ? (
                   <>
                     <tr role="status" className="sr-only">
-                      <td colSpan={(!isStaff ? 1 : 0) + 5 + (canReview ? 1 : 0)}>
+                      <td colSpan={(!isStaff ? 1 : 0) + 4 + (canReview ? 1 : 0)}>
                         Loading leave requests...
                       </td>
                     </tr>
@@ -209,7 +211,6 @@ export default function LeavesPage() {
                             </div>
                           </td>
                         )}
-                        <td className="py-3 px-4"><div className="h-3.5 w-24 rounded bg-slate-200" /></td>
                         <td className="py-3 px-4"><div className="h-3.5 w-36 rounded bg-slate-100" /></td>
                         <td className="py-3 px-4"><div className="h-3.5 w-8 rounded bg-slate-200" /></td>
                         <td className="py-3 px-4"><div className="h-3.5 w-40 rounded bg-slate-100" /></td>
@@ -227,7 +228,7 @@ export default function LeavesPage() {
                   </>
                 ) : requests.length === 0 ? (
                   <tr>
-                    <td colSpan={(!isStaff ? 1 : 0) + 5 + (canReview ? 1 : 0)} className="py-12 text-center text-slate-400 text-xs">
+                    <td colSpan={(!isStaff ? 1 : 0) + 4 + (canReview ? 1 : 0)} className="py-12 text-center text-slate-400 text-xs">
                       {isStaff ? 'You have no leave requests submitted yet.' : 'No leave requests submitted yet.'}
                     </td>
                   </tr>
@@ -248,9 +249,6 @@ export default function LeavesPage() {
                           </div>
                         </td>
                       )}
-                      <td className="py-3 px-4 text-[#535862]">
-                        {req.leaveType?.name}
-                      </td>
                       <td className="py-3 px-4 text-[#535862]">
                         {formatDate(req.startDate)} &rarr; {formatDate(req.endDate)}
                       </td>
@@ -324,21 +322,11 @@ export default function LeavesPage() {
               )}
 
               <form onSubmit={handleApply} className="mt-4 space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-[#344054] mb-1">
-                    Leave Category *
-                  </label>
-                  <select
-                    value={leaveTypeId}
-                    onChange={(e) => setLeaveTypeId(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-[#EAECF0] rounded-lg text-[13px] focus:ring-1 focus:ring-[#2D7A58] outline-none"
-                  >
-                    {leaveTypes.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name} (Default: {t.defaultDays} days)
-                      </option>
-                    ))}
-                  </select>
+                <div className="px-3.5 py-2.5 rounded-lg bg-[#EAF6ED]/70 border border-[#D1EBD9] text-xs text-[#2D7A58] font-medium flex items-center justify-between">
+                  <span>Monthly Leave Allowance</span>
+                  <span className="font-bold">
+                    {monthlyBalance ? `${monthlyBalance.remainingDays} / ${monthlyBalance.limit} days left` : '2 days / month'}
+                  </span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

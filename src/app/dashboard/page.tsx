@@ -364,7 +364,7 @@ export default function DashboardPage() {
                             {leave.employee?.firstName} {leave.employee?.lastName}
                           </p>
                           <p className="text-[11px] text-[#717680]">
-                            {leave.leaveType?.name} &bull; {Number(leave.daysCount)} day(s)
+                            Leave &bull; {Number(leave.daysCount)} day(s)
                           </p>
                         </div>
                       </div>

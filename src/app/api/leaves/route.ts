@@ -3,13 +3,20 @@ import { prisma } from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
 import { LeaveStatus, Role } from '@prisma/client';
 import { z } from 'zod';
+import { sendPushToManagers } from '@/lib/push';
+import {
+  MONTHLY_LEAVE_LIMIT,
+  ensureDefaultLeaveType,
+  getMonthlyLeaveUsage,
+  splitRangeByMonth,
+  toUTCDateOnly,
+} from '@/lib/leave-policy';
 
 export const dynamic = 'force-dynamic';
 
 const applyLeaveSchema = z.object({
-  leaveTypeId: z.string(),
-  startDate: z.string(),
-  endDate: z.string(),
+  startDate: z.string().min(1),
+  endDate: z.string().min(1),
   reason: z.string().min(3),
 });
 
@@ -23,7 +30,7 @@ export async function GET(request: Request) {
     const where: any = {};
     if (session.role === Role.EMPLOYEE) {
       if (!session.employeeId) {
-        return NextResponse.json({ requests: [], balances: [], leaveTypes: [] });
+        return NextResponse.json({ requests: [], monthlyBalance: null });
       }
       where.employeeId = session.employeeId;
     }
@@ -44,20 +51,12 @@ export async function GET(request: Request) {
       orderBy: { createdAt: 'desc' },
     });
 
-    const leaveTypes = await prisma.leaveType.findMany();
+    const now = new Date();
+    const monthlyBalance = session.employeeId
+      ? await getMonthlyLeaveUsage(prisma, session.employeeId, now.getFullYear(), now.getMonth())
+      : null;
 
-    let balances: any[] = [];
-    if (session.employeeId) {
-      balances = await prisma.leaveBalance.findMany({
-        where: {
-          employeeId: session.employeeId,
-          year: new Date().getFullYear(),
-        },
-        include: { leaveType: true },
-      });
-    }
-
-    return NextResponse.json({ requests, balances, leaveTypes });
+    return NextResponse.json({ requests, monthlyBalance });
   } catch (error) {
     console.error('Fetch leaves error:', error);
     return NextResponse.json({ error: 'Failed to fetch leaves' }, { status: 500 });
@@ -78,42 +77,44 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid leave application data' }, { status: 400 });
     }
 
-    const { leaveTypeId, startDate, endDate, reason } = parsed.data;
+    const { startDate, endDate, reason } = parsed.data;
 
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+    const start = toUTCDateOnly(startDate);
+    const end = toUTCDateOnly(endDate);
+
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return NextResponse.json({ error: 'Invalid date format' }, { status: 400 });
+    }
 
     if (end < start) {
       return NextResponse.json({ error: 'End date cannot be earlier than start date' }, { status: 400 });
     }
 
-    // Calculate days count
-    const diffTime = Math.abs(end.getTime() - start.getTime());
-    const daysCount = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    const daysCount = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
 
-    // Check balance
-    const currentYear = start.getFullYear();
-    const balance = await prisma.leaveBalance.findUnique({
-      where: {
-        employeeId_leaveTypeId_year: {
-          employeeId: session.employeeId,
-          leaveTypeId,
-          year: currentYear,
-        },
-      },
-    });
+    // Enforce max 2 leave days per calendar month for all staff
+    const monthSlices = splitRangeByMonth(start, end);
+    const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 
-    if (balance && (balance.usedDays + daysCount > balance.totalDays)) {
-      return NextResponse.json(
-        { error: `Insufficient leave balance. Remaining: ${balance.totalDays - balance.usedDays} days` },
-        { status: 400 }
-      );
+    for (const slice of monthSlices) {
+      const usage = await getMonthlyLeaveUsage(prisma, session.employeeId, slice.year, slice.monthIndex0);
+      if (usage.committedDays + slice.days > MONTHLY_LEAVE_LIMIT) {
+        const monthLabel = monthFormatter.format(new Date(Date.UTC(slice.year, slice.monthIndex0, 1)));
+        return NextResponse.json(
+          {
+            error: `Monthly leave limit is ${MONTHLY_LEAVE_LIMIT} days per month. You have ${usage.remainingDays} day(s) remaining for ${monthLabel}.`,
+          },
+          { status: 400 }
+        );
+      }
     }
+
+    const defaultLeaveType = await ensureDefaultLeaveType(prisma);
 
     const leaveRequest = await prisma.leaveRequest.create({
       data: {
         employeeId: session.employeeId,
-        leaveTypeId,
+        leaveTypeId: defaultLeaveType.id,
         startDate: start,
         endDate: end,
         daysCount,
@@ -124,6 +125,18 @@ export async function POST(request: Request) {
         leaveType: true,
       },
     });
+
+    // Notify all managers that a new leave request has been submitted
+    const employee = await prisma.employee.findUnique({
+      where: { id: session.employeeId },
+      select: { firstName: true, lastName: true },
+    });
+    sendPushToManagers({
+      title: '📋 New Leave Request',
+      body: `${employee?.firstName ?? 'An employee'} ${employee?.lastName ?? ''} has submitted a leave request (${daysCount} day${daysCount > 1 ? 's' : ''}).`,
+      url: '/leaves',
+      tag: `leave-submitted-${leaveRequest.id}`,
+    }).catch(console.error); // fire-and-forget, don't block the response
 
     return NextResponse.json({ success: true, leaveRequest }, { status: 201 });
   } catch (error) {

@@ -220,14 +220,12 @@ export default function EmployeeDetailsPage() {
           </div>
 
           <div className="bg-white p-4 rounded-xl border border-[#EAECF0] shadow-subtle">
-            <span className="text-[11px] font-medium text-[#717680] block mb-1">Annual Leave Balance</span>
+            <span className="text-[11px] font-medium text-[#717680] block mb-1">Remaining Leaves (This Month)</span>
             <div className="text-lg font-bold text-[#181D27]">
-              {emp.leaveBalances?.[0]
-                ? `${emp.leaveBalances[0].totalDays - emp.leaveBalances[0].usedDays} Days`
-                : '12 Days'}
+              {stats?.monthlyLeave?.remainingDays ?? 2} / {stats?.monthlyLeave?.limit ?? 2} Days
             </div>
             <span className="text-[11px] text-[#717680] mt-1 block">
-              {emp.leaveBalances?.[0]?.usedDays ?? 0} days used this year
+              {stats?.monthlyLeave?.usedDays ?? 0} approved &bull; {stats?.monthlyLeave?.pendingDays ?? 0} pending
             </span>
           </div>
 
@@ -384,35 +382,38 @@ export default function EmployeeDetailsPage() {
         {/* ========================================================================= */}
         {activeTab === 'leaves' && (
           <div className="space-y-6">
-            {/* Balances Progress Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {emp.leaveBalances?.map((bal: any) => {
-                const remaining = Math.max(0, bal.totalDays - bal.usedDays);
-                const percent = Math.min(100, Math.round((bal.usedDays / bal.totalDays) * 100));
-
-                return (
-                  <div key={bal.id} className="bg-white p-5 rounded-2xl border border-[#EAECF0] shadow-subtle space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-sm text-[#181D27]">{bal.leaveType.name}</span>
-                      <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-semibold">
-                        {bal.leaveType.code}
-                      </span>
-                    </div>
-
-                    <div className="flex items-baseline justify-between text-xs">
-                      <span className="text-2xl font-bold text-[#2D7A58]">{remaining} Days</span>
-                      <span className="text-slate-500 text-[11px]">{bal.usedDays} of {bal.totalDays} used</span>
-                    </div>
-
-                    <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
-                      <div
-                        className="h-full bg-[#2D7A58] rounded-full"
-                        style={{ width: `${percent}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+            {/* Monthly Leave Allowance Card */}
+            <div className="bg-white p-5 rounded-2xl border border-[#EAECF0] shadow-subtle max-w-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-sm text-[#181D27]">Monthly Leave Allowance</span>
+                <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-[#EAF6ED] text-[#2D7A58] font-semibold">
+                  {stats?.monthlyLeave
+                    ? `${monthNames[stats.monthlyLeave.month - 1]} ${stats.monthlyLeave.year}`
+                    : 'This Month'}
+                </span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-bold text-[#2D7A58]">
+                  {stats?.monthlyLeave?.remainingDays ?? 2}
+                </span>
+                <span className="text-xs text-[#717680]">
+                  / {stats?.monthlyLeave?.limit ?? 2} Days Remaining
+                </span>
+              </div>
+              <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
+                <div
+                  className="h-full bg-[#2D7A58] rounded-full transition-all"
+                  style={{
+                    width: `${Math.min(
+                      100,
+                      Math.round(((stats?.monthlyLeave?.committedDays ?? 0) / (stats?.monthlyLeave?.limit ?? 2)) * 100)
+                    )}%`,
+                  }}
+                />
+              </div>
+              <p className="text-xs text-[#717680]">
+                {stats?.monthlyLeave?.usedDays ?? 0} approved &bull; {stats?.monthlyLeave?.pendingDays ?? 0} pending this month
+              </p>
             </div>
 
             {/* Leave History Table */}
@@ -425,7 +426,6 @@ export default function EmployeeDetailsPage() {
                   <thead>
                     <tr className="bg-[#FAFBFB] border-b border-[#EAECF0] text-[#535862] font-semibold text-[11px]">
                       <th className="py-3 px-4">Period</th>
-                      <th className="py-3 px-4">Type</th>
                       <th className="py-3 px-4">Duration</th>
                       <th className="py-3 px-4">Reason</th>
                       <th className="py-3 px-4">Status</th>
@@ -435,7 +435,7 @@ export default function EmployeeDetailsPage() {
                   <tbody className="divide-y divide-[#EAECF0]">
                     {emp.leaveRequests?.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="py-8 text-center text-slate-400">
+                        <td colSpan={5} className="py-8 text-center text-slate-400">
                           No leave applications submitted.
                         </td>
                       </tr>
@@ -445,7 +445,6 @@ export default function EmployeeDetailsPage() {
                           <td className="py-3 px-4 font-medium text-[#181D27]">
                             {formatDate(req.startDate)} &rarr; {formatDate(req.endDate)}
                           </td>
-                          <td className="py-3 px-4">{req.leaveType?.name}</td>
                           <td className="py-3 px-4 font-mono font-semibold">{req.daysCount} Day(s)</td>
                           <td className="py-3 px-4 text-slate-600 max-w-[200px] truncate">{req.reason}</td>
                           <td className="py-3 px-4">
